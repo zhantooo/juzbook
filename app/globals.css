@@ -1,0 +1,2169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Оқу типографиясы (reading-mode.tsx басқарады) */
+    --reading-size: 19px;
+    --reading-lead: 2;
+    --reading-measure: 100%;
+    --reading-font: var(--font-juz-sans), system-ui, sans-serif;
+
+    /* Интерфейстің акцент түсі. Пән мен кітаптың өз түсі (rose, emerald,
+       amber…) тек сол кітаптың бетінде қолданылады, ал хедер, батырма,
+       сілтеме, фокус — бүкіл сайтта осы бір түс. */
+    --accent: #0284c7;
+    --accent-strong: #0369a1;
+    --focus-ring: #0284c7;
+
+    /* Бұрыш радиусының шкаласы: басқа мән қолданылмайды */
+    --radius-xs: 0.75rem;
+    --radius-sm: 1rem;
+    --radius-md: 1.5rem;
+    --radius-lg: 2rem;
+
+    /* Қабаттар. Жаңа мән ойлап таппай, осылардың бірін алу керек:
+       10 бет ішіндегі көтерілген элемент · 40–50 қалқыма виджет ·
+       60 хедер мен оның ашылмалы панелі · 80 оқу видындағы жабын ·
+       100 модаль терезе · 110 модаль ішіндегі ашылмалы тізім · 120 хабарлама */
+    --z-raised: 10;
+    --z-sticky: 40;
+    --z-header: 60;
+    --z-overlay: 80;
+    --z-modal: 100;
+    --z-popover: 110;
+    --z-toast: 120;
+  }
+
+  .dark {
+    --accent: #22d3ee;
+    --accent-strong: #67e8f9;
+    --focus-ring: #22d3ee;
+  }
+
+  * {
+    @apply border-slate-200/80 dark:border-zinc-800;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    @apply min-h-screen bg-slate-50 text-slate-900 dark:bg-zinc-950 dark:text-zinc-50;
+    font-family: var(--font-juz-sans), sans-serif;
+    background: #f8fafc;
+  }
+
+  .dark body {
+    background: #09090b;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-juz-sans), sans-serif;
+  }
+
+  a {
+    @apply no-underline;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  /* Tailwind-тің әдепкі толтырғыш түсі (gray-400) ақ фонда 2,8:1 ғана —
+     WCAG AA 4,5:1 талап етеді. Екі режимде де оқылатын түске көшірілді. */
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-slate-500 dark:text-zinc-400;
+    opacity: 1;
+  }
+
+  /* Пернетақтамен жүргенде фокус әрқашан көрінеді. Селектордың салмағы
+     `outline-none` класынан жоғары, сондықтан бұл ереже бүкіл сайтта
+     жұмыс істейді — әр компонентте жеке жазудың қажеті жоқ. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Тінтуірмен басқанда сақина шықпайды — тек пернетақтада */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background: rgba(56, 189, 248, 0.18);
+  }
+}
+
+@layer utilities {
+  .page-shell {
+    @apply relative min-h-screen bg-slate-50 text-slate-900 dark:bg-zinc-950 dark:text-zinc-50;
+    background: #f8fafc;
+    /* `overflow: hidden` бетті көлденең айналдырылатын блокқа айналдырады:
+       шетінен шығып тұрған жарық дақтары (hero-book-glow) оны 1473px қылады да,
+       браузер фокусты көрсеткенде бүкіл бетті солға жылжытып, мәтінді қиып
+       тастайды. `clip` сол қиюды сақтайды, бірақ айналдыруға жол бермейді. */
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  .dark .page-shell {
+    background: #09090b;
+  }
+
+  .page-width {
+    @apply mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Пернетақтамен келген оқырман мәзірді аттап, бірден мәтінге өте алады.
+     Әдетте көрінбейді, тек Tab басқанда шығады. */
+  .skip-link {
+    @apply sr-only;
+  }
+
+  .skip-link:focus-visible {
+    @apply not-sr-only fixed left-4 top-4 inline-flex h-11 items-center rounded-2xl bg-sky-600 px-5 text-sm font-medium text-white shadow-lg dark:bg-cyan-400 dark:text-zinc-950;
+    z-index: var(--z-toast);
+  }
+
+  .page-grid {
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.11) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.11) 1px, transparent 1px);
+    background-size: 34px 34px;
+  }
+
+  .page-glow {
+    @apply pointer-events-none absolute inset-0;
+    overflow: clip;
+  }
+
+  .glass-card {
+    @apply rounded-panel border border-slate-200/80 bg-white shadow-sm shadow-slate-200/40 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/20;
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(14, 165, 233, 0.35) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(14, 165, 233, 0.24);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(14, 165, 233, 0.42);
+  }
+
+  .soft-card {
+    @apply rounded-3xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/30 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/20;
+  }
+
+  /* ================= ОҚУ ФОНЫ (қағаз тақырыптары) =================
+     html[data-paper] арқылы қосылады, тек оқу бетіне ([data-reader-page])
+     әсер етеді — қалған беттердің дизайны өзгермейді.                */
+
+  html[data-paper="auto"]:not(.dark),
+  html[data-paper="light"] {
+    --paper-bg: #f2f5f9;
+    --paper-surface: #ffffff;
+    --paper-surface-2: #f8fafc;
+    --paper-text: #0f172a;
+    --paper-muted: #55606d;
+    --paper-line: rgba(15, 23, 42, 0.1);
+    --paper-shadow: 0 30px 70px -50px rgba(15, 23, 42, 0.55);
+  }
+
+  html[data-paper="auto"].dark,
+  html[data-paper="night"] {
+    --paper-bg: #0a0c0f;
+    --paper-surface: #14171c;
+    --paper-surface-2: #101318;
+    --paper-text: #dee3ea;
+    --paper-muted: #8b939e;
+    --paper-line: rgba(255, 255, 255, 0.09);
+    --paper-shadow: 0 30px 70px -50px rgba(0, 0, 0, 0.9);
+  }
+
+  html[data-paper="sepia"] {
+    --paper-bg: #ddc999;
+    --paper-surface: #f0e2bd;
+    --paper-surface-2: #e6d5aa;
+    --paper-text: #33291a;
+    --paper-muted: #6d5936;
+    --paper-line: rgba(105, 78, 32, 0.26);
+    --paper-shadow: 0 30px 70px -50px rgba(86, 60, 20, 0.6);
+  }
+
+  html[data-paper="soft"] {
+    --paper-bg: #d8e2db;
+    --paper-surface: #edf3ee;
+    --paper-surface-2: #e4ece6;
+    --paper-text: #1c2922;
+    --paper-muted: #556458;
+    --paper-line: rgba(30, 60, 45, 0.17);
+    --paper-shadow: 0 30px 70px -50px rgba(24, 56, 40, 0.45);
+  }
+
+  /* Акцент түсі қағазға бейімделеді: әйтпесе қараңғы тақырыптағы ашық көгілдір
+     ашық қағазда (және керісінше) мүлдем оқылмай қалады. */
+
+  html[data-paper="sepia"],
+  html[data-paper="soft"] {
+    --paper-accent: #0369a1;
+    --paper-accent-2: #056d4e;
+    --paper-accent-soft: rgba(3, 105, 161, 0.1);
+    --paper-on-accent: #ffffff;
+  }
+
+  html[data-paper="night"] {
+    --paper-accent: #67e8f9;
+    --paper-accent-2: #6ee7b7;
+    --paper-accent-soft: rgba(103, 232, 249, 0.12);
+    --paper-on-accent: #0a0c0f;
+  }
+
+  /* --- Тақырып қосулы кезде (sepia / soft / night) БҮКІЛ САЙТҚА әсер етеді --- */
+
+  html[data-paper-active="true"] body,
+  html[data-paper-active="true"] .page-shell {
+    background: var(--paper-bg) !important;
+    background-image: none !important;
+    color: var(--paper-text) !important;
+    transition: background-color 0.45s ease, color 0.45s ease;
+  }
+
+  /* ================= Пиксель ағаш бағы =================
+     Бақтың өз палитрасы бар — қағаз тақырыбы оны баспауы керек,
+     әйтпесе ортасы ойын, шеті сұр болып, беттің балансы бұзылады. */
+
+  html body .page-shell[data-pixel-garden="true"],
+  html[data-paper-active="true"] body .page-shell[data-pixel-garden="true"] {
+    background-color: #060d16 !important;
+    background-image: linear-gradient(#0a1524, #060d16) !important;
+    color: #eaf7d2 !important;
+  }
+
+  html body:has([data-pixel-garden="true"]),
+  html[data-paper-active="true"] body:has([data-pixel-garden="true"]) {
+    background-color: #060d16 !important;
+    background-image: none !important;
+  }
+
+  /* Сайт мәзірі де бақтың түсіне енеді — жоғарғы жиек ақ болып бөлініп тұрмайды.
+     Екінші селектор қағаз тақырыбының ережелерінен басым болу үшін жазылған. */
+  .page-shell[data-pixel-garden="true"] header,
+  html[data-paper-active="true"] .page-shell[data-pixel-garden="true"] header {
+    background: rgba(10, 21, 36, 0.94) !important;
+    border-bottom: 3px solid #2c4f2a !important;
+  }
+
+  /* Мәзірдің барлық ішкі элементі мөлдір әрі кремді түсте — қағаз ережелері
+     оларды ақ қылып бояп, жазуы көрінбей қалмауы үшін. */
+  /* :not([data-header-popup]) — ашылмалы панельдер (телефон мәзірі, оқу режимі)
+     мөлдір болып қалмауы үшін; олардың өз фоны сақталады. */
+  .page-shell[data-pixel-garden="true"]
+    header
+    :where(a, button, span, p, div, nav):not([data-header-popup]):not([data-header-popup] *),
+  html[data-paper-active="true"]
+    .page-shell[data-pixel-garden="true"]
+    header
+    :where(a, button, span, p, div, nav):not([data-header-popup]):not([data-header-popup] *) {
+    background-color: transparent !important;
+    background-image: none !important;
+    color: #eaf7d2 !important;
+    -webkit-text-fill-color: #eaf7d2 !important;
+    border-color: #2c4f2a !important;
+  }
+
+  /* Бақтағы ашылмалы панельдер қою пиксель фонда қалады */
+  .page-shell[data-pixel-garden="true"] header [data-header-popup="true"] {
+    background: #0c1a26 !important;
+    border: 3px solid #2c4f2a !important;
+  }
+
+  .page-shell[data-pixel-garden="true"] header [data-header-popup="true"] :where(a, button) {
+    color: #eaf7d2 !important;
+    -webkit-text-fill-color: #eaf7d2 !important;
+  }
+
+  .page-shell[data-pixel-garden="true"] header [data-header-popup="true"] :where(a, button):hover {
+    background-color: #14260e !important;
+  }
+
+  /* Іздеуден келгенде барлық кездесу жайлап боялады, ал басылған сөз
+     (?hit=N) айқын ерекшеленіп, назарды өзіне тартады */
+  .reader-prose mark[data-search-hit] {
+    border-radius: 4px;
+    padding: 0 3px;
+    background: rgba(253, 224, 71, 0.4);
+    color: inherit;
+  }
+
+  .reader-prose mark[data-search-hit="active"] {
+    background: #fde047;
+    color: #422006;
+    box-shadow: 0 0 0 3px rgba(253, 224, 71, 0.45);
+    animation: searchHitPulse 1.6s ease-in-out 3;
+  }
+
+  @keyframes searchHitPulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 3px rgba(253, 224, 71, 0.45);
+    }
+    50% {
+      box-shadow: 0 0 0 7px rgba(253, 224, 71, 0.15);
+    }
+  }
+
+  /* ---- Бақтағы ағаш таңдау нұсқағышы мен су құю анимациясы ---- */
+
+  .garden-pointer {
+    position: absolute;
+    top: 42%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    line-height: 1;
+    color: #8ad84c;
+    text-shadow: 0 0 6px rgba(138, 216, 76, 0.55);
+    pointer-events: none;
+    animation: gardenPointerBob 1.4s ease-in-out infinite;
+  }
+
+  @keyframes gardenPointerBob {
+    0%,
+    100% {
+      transform: translateX(-50%) translateY(0);
+    }
+    50% {
+      transform: translateX(-50%) translateY(6px);
+    }
+  }
+
+  .garden-pour {
+    position: absolute;
+    top: 26%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .garden-pour i {
+    position: absolute;
+    top: 0;
+    width: 5px;
+    height: 9px;
+    border-radius: 2px 2px 3px 3px;
+    background: #6ec7f5;
+    box-shadow: 0 0 6px rgba(110, 199, 245, 0.7);
+    animation: gardenDrop 0.75s linear infinite;
+  }
+
+  @keyframes gardenDrop {
+    from {
+      transform: translateY(0) scaleY(0.7);
+      opacity: 0;
+    }
+    18% {
+      opacity: 1;
+    }
+    to {
+      transform: translateY(96px) scaleY(1.25);
+      opacity: 0;
+    }
+  }
+
+  /* Бақтағы JUZ40 логотипі пиксельденеді — қалған беттерде өзгермейді */
+  .page-shell[data-pixel-garden="true"] header img {
+    image-rendering: pixelated;
+    transform: scale(0.94);
+    filter: contrast(1.35) saturate(0.9) drop-shadow(2px 2px 0 rgba(21, 41, 15, 0.9));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .garden-pointer,
+    .garden-pour i {
+      animation: none !important;
+    }
+  }
+
+  /* Бақ бетінде мәзір жазулары ірілеу — пиксель дизайнға сай болу үшін */
+  .page-shell[data-pixel-garden="true"] header :where(a, button, span, p) {
+    font-size: 1.08rem !important;
+    letter-spacing: 0.01em;
+  }
+
+  /* Оқу режимі бақ бетінде қажет емес — мұнда оқылатын мәтін жоқ */
+  .page-shell[data-pixel-garden="true"] header [data-reading-mode-control="true"] {
+    display: none !important;
+  }
+
+  /* Белсенді сілтеме мен дөңгелек батырмалар ерекшеленіп тұрады */
+  .page-shell[data-pixel-garden="true"] header :where(a, button)[class*="bg-slate-900"],
+  html[data-paper-active="true"] .page-shell[data-pixel-garden="true"] header :where(a, button)[class*="bg-slate-900"] {
+    background-color: #1d3a12 !important;
+    color: #b7e06a !important;
+    -webkit-text-fill-color: #b7e06a !important;
+  }
+
+  .page-shell[data-pixel-garden="true"] header :where(a, button)[class*="rounded-full"][class*="border"],
+  html[data-paper-active="true"] .page-shell[data-pixel-garden="true"] header :where(a, button)[class*="rounded-full"][class*="border"] {
+    background-color: rgba(20, 38, 14, 0.9) !important;
+  }
+
+  .page-shell[data-pixel-garden="true"] header img[class*="dark:hidden"],
+  html[data-paper="sepia"] .page-shell[data-pixel-garden="true"] header img[class*="dark:hidden"],
+  html[data-paper="soft"] .page-shell[data-pixel-garden="true"] header img[class*="dark:hidden"] {
+    display: none !important;
+  }
+
+  .page-shell[data-pixel-garden="true"] header img[class*="dark:block"],
+  html[data-paper="sepia"] .page-shell[data-pixel-garden="true"] header img[class*="dark:block"],
+  html[data-paper="soft"] .page-shell[data-pixel-garden="true"] header img[class*="dark:block"] {
+    display: block !important;
+  }
+
+  /* Негізгі карталар мен панельдер.
+     :not([class*="]:"]) — Tailwind-тың ұрпаққа арналған кластарын ([&_p]:bg-white
+     сияқты) елемеу үшін: олар элементтің өзіне емес, ішіндегі тегтерге арналған. */
+  html[data-paper-active="true"]
+    :where(.glass-card, .soft-card, [class*="bg-white"], [class*="bg-zinc-9"], [class*="bg-zinc-8"]):not([class*="]:"]) {
+    background-color: var(--paper-surface) !important;
+    background-image: none !important;
+  }
+
+  /* Ішкі (екінші деңгейлі) блоктар — сәл қоюлау */
+  html[data-paper-active="true"]
+    :where([class*="bg-slate-50"], [class*="bg-slate-100"], .bg-zinc-50, [class*="bg-zinc-95"]):not([class*="]:"]) {
+    background-color: var(--paper-surface-2) !important;
+    background-image: none !important;
+  }
+
+  html[data-paper-active="true"] :where(.text-slate-950, .text-slate-900, .text-slate-800, .text-zinc-50, .text-zinc-100, .dark\:text-zinc-50, .dark\:text-zinc-100, .dark\:text-white) {
+    color: var(--paper-text) !important;
+  }
+
+  html[data-paper-active="true"] :where(.text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400, .text-zinc-300, .text-zinc-400, .dark\:text-zinc-200, .dark\:text-zinc-300, .dark\:text-zinc-400) {
+    color: var(--paper-muted) !important;
+  }
+
+  html[data-paper-active="true"]
+    :where([class*="border-slate-2"], [class*="border-slate-3"], [class*="border-zinc-7"], [class*="border-zinc-8"]):not([class*="]:"]) {
+    border-color: var(--paper-line) !important;
+  }
+
+  /* Акцент мәтіні мен иконкалары (text-sky-*, text-cyan-*, dark:text-cyan-* қоса) */
+  html[data-paper-active="true"] :where([class*="text-sky-"], [class*="text-cyan-"]):not([class*="]:"]) {
+    color: var(--paper-accent) !important;
+  }
+
+  html[data-paper-active="true"] :where([class*="text-emerald-"]):not([class*="]:"]) {
+    color: var(--paper-accent-2) !important;
+  }
+
+  /* Қағаз тақырыбы түсті толық басқарғандықтан, жарық/қараңғы батырмасы жасырылады */
+  html[data-paper-active="true"] [data-theme-toggle] {
+    display: none !important;
+  }
+
+  /* Логотип нұсқасы тақырыпқа емес, қағаз түсіне қарай таңдалады */
+  html[data-paper="night"] header img[class*="dark:hidden"] {
+    display: none !important;
+  }
+
+  html[data-paper="night"] header img[class*="dark:block"] {
+    display: block !important;
+  }
+
+  html[data-paper="sepia"] header img[class*="dark:hidden"],
+  html[data-paper="soft"] header img[class*="dark:hidden"] {
+    display: block !important;
+  }
+
+  html[data-paper="sepia"] header img[class*="dark:block"],
+  html[data-paper="soft"] header img[class*="dark:block"] {
+    display: none !important;
+  }
+
+  /* Градиентпен боялған мәтін (bg-clip-text) қағаз фонында жоғалып кетеді */
+  html[data-paper-active="true"] :where([class*="bg-clip-text"]):not([class*="]:"]) {
+    background-image: none !important;
+    color: var(--paper-accent) !important;
+    -webkit-text-fill-color: var(--paper-accent) !important;
+  }
+
+  /* Негізгі әрекет батырмалары да қағаз акцентіне көшеді */
+  html[data-paper-active="true"]
+    :where([class*="bg-sky-600"], [class*="bg-sky-700"], [class*="bg-cyan-400"], [class*="bg-cyan-300"]):not([class*="]:"]) {
+    background-color: var(--paper-accent) !important;
+    color: var(--paper-on-accent) !important;
+  }
+
+  html[data-paper-active="true"]
+    :where([class*="bg-sky-600"], [class*="bg-sky-700"], [class*="bg-cyan-400"], [class*="bg-cyan-300"]):not([class*="]:"]):hover {
+    filter: brightness(1.1);
+  }
+
+  /* Акцентті шағын фондар (чиптер, белсенді батырмалар) */
+  html[data-paper-active="true"]
+    :where(
+      [class*="bg-sky-50"],
+      [class*="bg-sky-100"],
+      [class*="bg-cyan-50"],
+      [class*="bg-cyan-500/1"],
+      [class*="bg-emerald-50"],
+      [class*="bg-emerald-100"],
+      [class*="bg-emerald-500/1"]
+    ):not([class*="]:"]) {
+    background-color: var(--paper-accent-soft) !important;
+  }
+
+  html[data-paper-active="true"] :where(input, textarea, select) {
+    background-color: var(--paper-surface-2) !important;
+    color: var(--paper-text) !important;
+    border-color: var(--paper-line) !important;
+  }
+
+  /* Түрлі-түсті шашыраңқы дақтар мен тор жылы фонды бүлдірмеуі үшін басылады */
+  html[data-paper-active="true"] .page-glow {
+    opacity: 0.25 !important;
+  }
+
+  html[data-paper-active="true"] .page-grid {
+    opacity: 0.14 !important;
+  }
+
+  /* Оқу беті: мәтін қорап ішінде емес, беттің өзінде тұрады —
+     қағаз тақырыбында тек мәтін түсі ғана өзгереді */
+  html[data-paper-active="true"] [data-reading-surface] {
+    background-color: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: var(--paper-text);
+  }
+
+  [data-reading-column] {
+    max-width: var(--reading-measure, 74ch);
+  }
+
+  /* Тыныш режим: тек мәтін қалады */
+  html[data-reading-focus="true"] [data-reader-grid] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-reading-focus="true"] [data-reader-grid] > *:not([data-reading-surface]) {
+    display: none !important;
+  }
+
+  html[data-reading-focus="true"] [data-reader-page] [data-reading-surface] {
+    margin-inline: auto;
+    max-width: 68rem;
+  }
+
+  html[data-reading-focus="true"] [data-reader-page] .page-glow,
+  html[data-reading-focus="true"] [data-reader-page] .page-grid {
+    opacity: 0 !important;
+  }
+
+  /* ================= Оқу типографиясы ================= */
+
+  .reader-prose {
+    @apply break-words antialiased;
+    max-width: 100%;
+    font-family: var(--reading-font, var(--font-juz-sans), sans-serif);
+    font-size: var(--reading-size, 19px) !important;
+    line-height: var(--reading-lead, 2) !important;
+    letter-spacing: 0.004em;
+    color: var(--paper-text, #0f172a);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* ================= Кестелер ================= */
+
+  /* Кітаптағы кестелер тар бағанға сыймайды: бағандар қысылып, сөздер
+     әріптеп бөлініп кетеді. Сондықтан кесте өз енімен қалады да, керек
+     болса көлденеңінен жылжытылады. */
+  .reader-prose table {
+    display: block;
+    width: max-content !important;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-collapse: collapse;
+    margin: 1.25rem 0 !important;
+  }
+
+  .reader-prose table td,
+  .reader-prose table th {
+    /* Ұзын сөздер әріптеп бөлінбеуі керек */
+    overflow-wrap: normal;
+    word-break: keep-all;
+    hyphens: none;
+    white-space: normal;
+    min-width: 8rem;
+    max-width: 22rem;
+    vertical-align: top;
+    font-size: 0.95em !important;
+    line-height: 1.7 !important;
+  }
+
+  .reader-prose table th {
+    background: rgba(148, 163, 184, 0.12);
+    font-weight: 600;
+  }
+
+  /* Ұяшықтың жақтауы бұрын тек оқу бетінің Tailwind нұсқаларында тұрған,
+     сондықтан әкімші редакторында кесте жақтаусыз, жалаң жол болып
+     көрінетін. Енді екеуі де осы ережеден алады. */
+  .reader-prose table td,
+  .reader-prose table th,
+  [data-juz-editor="true"] table td,
+  [data-juz-editor="true"] table th {
+    @apply border border-slate-200 dark:border-zinc-700;
+    padding: 0.75rem;
+  }
+
+  .reader-prose table th,
+  [data-juz-editor="true"] table th {
+    @apply border-slate-300 dark:border-zinc-600;
+  }
+
+  [data-juz-editor="true"] table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+  }
+
+  [data-juz-editor="true"] table td,
+  [data-juz-editor="true"] table th {
+    /* Ұзын сөздер әріптеп бөлінбеуі керек */
+    overflow-wrap: normal;
+    word-break: keep-all;
+    hyphens: none;
+    vertical-align: top;
+    min-width: 8rem;
+    max-width: 22rem;
+  }
+
+  [data-juz-editor="true"] table th {
+    background: rgba(148, 163, 184, 0.12);
+    font-weight: 600;
+  }
+
+  /* ================= Программа коды ================= */
+
+  /* Код жолдары мен шегіністері кітаптағыдай сақталады: жол бөлінбейді,
+     ұзын жол көлденеңінен жылжиды. */
+  .reader-prose pre {
+    margin: 1.25rem 0 !important;
+    padding: 0.9rem 1.1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: rgba(148, 163, 184, 0.1);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: pre;
+    word-break: normal;
+    overflow-wrap: normal;
+    tab-size: 4;
+  }
+
+  .reader-prose pre,
+  .reader-prose pre code {
+    font-family: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace !important;
+    font-size: 0.8em !important;
+    line-height: 1.65 !important;
+    text-indent: 0 !important;
+  }
+
+  /* Формуладағы дәреже мен индекс (2¹⁰, V₁) — жалпы қаріп ережесі оларды
+     толық өлшемге созып жібермеуі керек */
+  .reader-prose sub,
+  .reader-prose sup {
+    font-size: 0.7em !important;
+    line-height: 0 !important;
+  }
+
+  /* Азат жол — кітаптағыдай, абзацтың бірінші жолы шегініспен басталады.
+     Абзацтар өзара бос жолмен емес, осы шегініспен ажыратылады. */
+  .reader-prose p[data-indent="true"] {
+    text-indent: var(--reading-indent, 2em);
+  }
+
+  /* Азат жолмен келген абзацтар қатар тұрғанда аралығы кішірейеді */
+  .reader-prose p[data-indent="true"] + p[data-indent="true"] {
+    margin-top: 0.35rem;
+  }
+
+  .reader-prose :where(p, p *, li, li *, td, td *, th, th *, blockquote, blockquote *, span) {
+    font-family: var(--reading-font, var(--font-juz-sans), sans-serif);
+    font-size: var(--reading-size, 19px) !important;
+    line-height: var(--reading-lead, 2) !important;
+  }
+
+  .reader-prose :where(div:not([data-juz-tree]):not([data-juz-block]), div:not([data-juz-tree]):not([data-juz-block]) *) {
+    font-family: var(--reading-font, var(--font-juz-sans), sans-serif);
+    font-size: var(--reading-size, 19px) !important;
+    line-height: var(--reading-lead, 2) !important;
+  }
+
+  .reader-prose :where(p) {
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .reader-prose :where(strong, b) {
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+
+  .reader-prose :where(em, i, u) {
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+
+  .reader-prose :where(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-juz-sans), sans-serif;
+    font-size: calc(var(--reading-size, 19px) + 3px) !important;
+    line-height: 1.5 !important;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Тақырып блоктары (text-2xl / text-xl класы бар .reader-prose) */
+  .reader-prose:where(.text-3xl, .text-2xl, .text-xl) {
+    font-family: var(--font-juz-sans), sans-serif;
+    font-size: calc(var(--reading-size, 19px) * 1.4) !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Блоктың «Жылжыту / Өңдеу / Өшіру» батырмалары бұрын мәтіннің үстінде
+     тұрып, бірінші жолды жауып тұратын. Енді олар блоктың жоғарғы жиегінде
+     отырады әрі тінтуір блокқа тигенде ғана шығады — оқуға кедергі болмайды. */
+  [data-juz-block] > [data-juz-actions="true"] {
+    top: -0.9rem;
+    right: 0.75rem;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+  }
+
+  [data-juz-block]:hover > [data-juz-actions="true"],
+  [data-juz-block]:focus-within > [data-juz-actions="true"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  [data-juz-block] > [data-juz-actions="true"] button {
+    border-radius: 9999px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
+  }
+
+  /* Оқулықтағы боялған блок астына қарай ағарады. Қараңғы режимде мөлдірлікке
+     ауысса, блоктың қою мәтіні қара бетке түсіп, оқылмай қалады — сондықтан
+     онда түс тұтас болып қалады. */
+  .juz-colorbox {
+    background: linear-gradient(
+      180deg,
+      var(--juz-colorbox-fill) 0%,
+      var(--juz-colorbox-fill) 58%,
+      transparent 100%
+    );
+  }
+
+  .dark .juz-colorbox {
+    background: var(--juz-colorbox-fill);
+    border-radius: var(--radius-xs);
+  }
+
+  .reader-prose figure[data-juz-image="true"] {
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .reader-prose figure[data-juz-image="true"] img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .reader-prose figure[data-juz-image="true"][data-align="left"] {
+    float: left !important;
+    clear: none !important;
+    /* `!important` емес: ені суреттің өз енінен беріледі (рендер оны inline
+       жазады). `fit-content` сурет жазбасының ұзындығымен кеңейіп кететін —
+       сонда жазба суреттің астына емес, қасына шығып, мәтінмен қабаттасады. */
+    width: fit-content;
+    /* Ішкі inline стильді басып озуы керек, әйтпесе сурет бүкіл бағанды алады */
+    max-width: min(46%, 560px) !important;
+    margin: 0.25rem 1.35rem 0.75rem 0 !important;
+  }
+
+  .reader-prose figure[data-juz-image="true"][data-align="right"] {
+    float: right !important;
+    clear: none !important;
+    width: fit-content;
+    /* Ішкі inline стильді басып озуы керек, әйтпесе сурет бүкіл бағанды алады */
+    max-width: min(46%, 560px) !important;
+    margin: 0.25rem 0 0.75rem 1.35rem !important;
+  }
+
+  .reader-prose figure[data-juz-image="true"][data-align="center"] {
+    float: none !important;
+    clear: both !important;
+    width: fit-content;
+    max-width: 100%;
+    margin: 1rem auto !important;
+  }
+
+  .reader-prose figure[data-juz-image="true"] + p {
+    margin-top: 0;
+    clear: none;
+  }
+
+  .reader-prose > img[data-align="left"],
+  .reader-prose p > img[data-align="left"] {
+    float: left;
+    display: inline-block;
+    max-width: min(46%, 560px);
+    height: auto;
+    object-fit: contain;
+    margin: 0.35rem 1.5rem 1rem 0;
+    vertical-align: middle;
+  }
+
+  .reader-prose > img[data-align="right"],
+  .reader-prose p > img[data-align="right"] {
+    float: right;
+    display: inline-block;
+    max-width: min(46%, 560px);
+    height: auto;
+    object-fit: contain;
+    margin: 0.35rem 0 1rem 1.5rem;
+    vertical-align: middle;
+  }
+
+  .reader-prose > img[data-align="center"],
+  .reader-prose p > img[data-align="center"] {
+    display: block;
+    float: none;
+    clear: both;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    margin: 1.5rem auto;
+  }
+
+  @media (max-width: 768px) {
+    .reader-prose figure[data-juz-image="true"][data-align="left"],
+    .reader-prose figure[data-juz-image="true"][data-align="right"],
+    .reader-prose > img[data-align="left"],
+    .reader-prose > img[data-align="right"],
+    .reader-prose p > img[data-align="left"],
+    .reader-prose p > img[data-align="right"] {
+      float: none !important;
+      clear: both !important;
+      /* `!important` керек: үстіндегі ереже суретті 46%-бен шектеп тұр, содан
+         телефонда суреттер шағын қалып қоятын. Ені суреттің өз енінде қалады. */
+      max-width: 100% !important;
+      margin: 1.25rem auto !important;
+    }
+  }
+
+  .accent-ring {
+    @apply ring-1 ring-sky-400/20 dark:ring-cyan-400/20;
+  }
+
+  /* ================= Оқу режимі панеліндегі слайдер ================= */
+
+  .reading-range::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 999px;
+    background: transparent;
+  }
+
+  .reading-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -5px;
+    height: 18px;
+    width: 18px;
+    border-radius: 999px;
+    border: 2px solid #0284c7;
+    background: #ffffff;
+    box-shadow: 0 2px 10px rgba(2, 132, 199, 0.3);
+  }
+
+  .reading-range::-moz-range-track {
+    height: 8px;
+    border-radius: 999px;
+    background: transparent;
+  }
+
+  .reading-range::-moz-range-thumb {
+    height: 18px;
+    width: 18px;
+    border-radius: 999px;
+    border: 2px solid #0284c7;
+    background: #ffffff;
+    box-shadow: 0 2px 10px rgba(2, 132, 199, 0.3);
+  }
+
+  /* ================= Скроллда пайда болу анимациясы ================= */
+
+  .reveal-hidden {
+    opacity: 0;
+    transform: translate3d(0, 42px, 0) scale(0.985);
+    filter: blur(7px);
+  }
+
+  .reveal-shown {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+
+  /* ================= Hero: маскадан көтерілетін жолдар ================= */
+
+  .hero-mask {
+    overflow: hidden;
+  }
+
+  .hero-rise {
+    animation: heroRise 1.05s cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: transform;
+  }
+
+  .hero-line {
+    animation: heroFade 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: transform, opacity;
+  }
+
+  .hero-rule {
+    transform-origin: left center;
+    animation: heroRule 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes heroRise {
+    from {
+      transform: translateY(112%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes heroFade {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes heroRule {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* Шағын hero (ішкі беттер) */
+  .intro-mask {
+    overflow: hidden;
+  }
+
+  /* Фондық баяу жүзу — тек transform, GPU-ге жеңіл */
+  .glow-drift-a {
+    animation: glowDriftA 26s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .glow-drift-b {
+    animation: glowDriftB 32s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  @keyframes glowDriftA {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(4%, -3%, 0) scale(1.1);
+    }
+  }
+
+  @keyframes glowDriftB {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(-3.5%, 3%, 0) scale(1.08);
+    }
+  }
+
+  /* Телефонда фондық жүзу өшеді — сайт қатпайды */
+  @media (max-width: 768px) {
+    .glow-drift-a,
+    .glow-drift-b {
+      animation: none !important;
+    }
+  }
+
+
+  /* ================= Hero: ашылатын кітап ================= */
+
+  .hero-book-stage {
+    perspective: 1800px;
+    perspective-origin: 42% 50%;
+    min-height: 26rem;
+  }
+
+  .hero-book-glow {
+    position: absolute;
+    inset: -14% -8%;
+    border-radius: 999px;
+    background: radial-gradient(circle at 55% 45%, rgba(56, 189, 248, 0.22), transparent 66%);
+    filter: blur(28px);
+    animation: glowDriftA 24s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Settle анимациясы бөлек қабатта — сонда .hero-book-тың өз transform-ы
+     (ашылу кезіндегі оңға жылжу мен hover) анимациямен қақтығыспайды. */
+  .hero-book-holder {
+    position: relative;
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    transform-style: preserve-3d;
+    animation: heroBookSettle 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Мұқаба солға ашылатындықтан, ашылған кітап элементтен солға қарай өз ені
+     бойынша созылады. Сол себепті кітапты тұрақты түрде оңға жылжытып, жайылманы
+     бағананың ортасына қоямыз — әйтпесе ол hero мәтінінің үстіне түседі. */
+  .hero-book {
+    position: relative;
+    display: block;
+    width: min(23rem, 46%);
+    aspect-ratio: 3 / 4;
+    transform-style: preserve-3d;
+    transform: translateX(50%) rotateX(6deg) rotateY(-22deg) rotateZ(-1deg);
+    will-change: transform;
+    text-decoration: none;
+    transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .hero-book-stage[data-open="true"] .hero-book:hover {
+    transform: translateX(50%) rotateX(4deg) rotateY(-15deg) rotateZ(-0.5deg) scale(1.03);
+  }
+
+  .hero-book:focus-visible {
+    outline: 2px solid #0284c7;
+    outline-offset: 10px;
+    border-radius: 6px;
+  }
+
+  /* "Пәнді ашу": кітап көрерменге қарай ұлғайып, бетке кіріп бара жатқандай */
+  .hero-book-stage[data-entering="true"] .hero-book {
+    animation: heroBookEnter 0.76s cubic-bezier(0.5, 0, 0.75, 0) both;
+  }
+
+  .hero-book-stage[data-entering="true"] .hero-book-nav,
+  .hero-book-stage[data-entering="true"] .hero-book-glow {
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  @keyframes heroBookEnter {
+    from {
+      transform: translateX(50%) rotateX(6deg) rotateY(-22deg) rotateZ(-1deg) scale(1);
+      opacity: 1;
+    }
+    55% {
+      transform: translateX(34%) rotateX(2deg) rotateY(-8deg) rotateZ(0deg) scale(1.55);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(22%) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3.1);
+      opacity: 0;
+    }
+  }
+
+  .hero-book-back,
+  .hero-book-leaf {
+    position: absolute;
+    inset: 0;
+    border-radius: 4px 14px 14px 4px;
+  }
+
+  .hero-book-back {
+    background: linear-gradient(150deg, #ffffff, #eef2f7);
+    box-shadow: 0 40px 80px -40px rgba(15, 23, 42, 0.5), inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+
+  .dark .hero-book-back {
+    background: linear-gradient(150deg, #1c222c, #14181f);
+    box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .hero-book-page,
+  .hero-book-leaf-face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.85rem;
+    padding: 2.1rem 1.7rem;
+  }
+
+  .hero-book-line {
+    display: block;
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.11);
+    transform: scaleX(0);
+    transform-origin: left center;
+    animation: heroBookLine 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .dark .hero-book-line {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .hero-book-line:nth-child(1) { animation-delay: 1.5s; }
+  .hero-book-line:nth-child(2) { animation-delay: 1.6s; }
+  .hero-book-line:nth-child(3) { animation-delay: 1.7s; }
+  .hero-book-line:nth-child(4) { animation-delay: 1.8s; }
+  .hero-book-line:nth-child(5) { animation-delay: 1.9s; }
+  .hero-book-line:nth-child(6) { animation-delay: 2s; }
+  .hero-book-line:nth-child(7) { animation-delay: 2.1s; }
+
+  .hero-book-leaf {
+    transform-style: preserve-3d;
+    transform-origin: left center;
+    transform: rotateY(0deg);
+    transition: transform 1.5s cubic-bezier(0.32, 0.86, 0.28, 1);
+    will-change: transform;
+  }
+
+  .hero-book-leaf-face {
+    border-radius: 4px 14px 14px 4px;
+    backface-visibility: hidden;
+    overflow: hidden;
+  }
+
+  .hero-book-leaf-front {
+    background: linear-gradient(150deg, #ffffff, #f1f5f9);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05), inset 26px 0 34px -30px rgba(15, 23, 42, 0.4);
+  }
+
+  .dark .hero-book-leaf-front {
+    background: linear-gradient(150deg, #1e242e, #171b22);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 26px 0 34px -30px rgba(0, 0, 0, 0.8);
+  }
+
+  .hero-book-leaf-back {
+    transform: rotateY(180deg);
+    background: linear-gradient(150deg, #f8fafc, #e9eef5);
+  }
+
+  .dark .hero-book-leaf-back {
+    background: linear-gradient(150deg, #1a1f27, #12161c);
+  }
+
+  /* Мұқаба */
+  .hero-book-cover-front {
+    justify-content: flex-end;
+    gap: 1rem;
+    background: linear-gradient(155deg, #0f2f47 0%, #0a5c86 52%, #0284c7 100%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 30px 60px -34px rgba(2, 60, 96, 0.7);
+  }
+
+  .hero-book-brand {
+    font-size: clamp(1.4rem, 2.6vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #f8fafc;
+  }
+
+  .hero-book-cover-rule {
+    display: block;
+    width: 3.4rem;
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.65);
+  }
+
+  .hero-book-cover-note {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(226, 240, 252, 0.82);
+  }
+
+  .hero-book-cover-inner {
+    transform: rotateY(180deg);
+    background: linear-gradient(150deg, #f8fafc, #e6ecf4);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  }
+
+  .dark .hero-book-cover-inner {
+    background: linear-gradient(150deg, #1a1f27, #12161c);
+  }
+
+  .hero-book-spine {
+    position: absolute;
+    top: 2%;
+    bottom: 2%;
+    left: -2px;
+    width: 12px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #072a3f, #0a4a6d);
+    transform: translateZ(-8px);
+    box-shadow: 0 30px 50px -30px rgba(2, 40, 64, 0.8);
+  }
+
+  /* Ашылған күй — transition емес, keyframe анимациясы арқылы.
+     Transition ата-элементтің өз transform-ымен жарысып, жарты жолда үзіліп
+     қалады да, кітап ашылмай тұрып қалады. */
+  .hero-book-stage[data-open="true"] .hero-book-cover {
+    animation: heroCoverOpen 1.5s cubic-bezier(0.32, 0.86, 0.28, 1) both;
+  }
+
+  .hero-book-stage[data-open="true"] .hero-book-leaf-2 {
+    animation: heroLeaf2Open 1.5s cubic-bezier(0.32, 0.86, 0.28, 1) 0.22s both;
+  }
+
+  .hero-book-stage[data-open="true"] .hero-book-leaf-3 {
+    animation: heroLeaf3Open 1.5s cubic-bezier(0.32, 0.86, 0.28, 1) 0.44s both;
+  }
+
+  /* Соңғы пәннен біріншіге (не керісінше) өткенде кітап жабылып, қайта
+     ашылады: алдымен үстіңгі парақ, соңында мұқаба жабылады. */
+  .hero-book-stage[data-closing="true"] .hero-book-leaf-3 {
+    animation: heroLeaf3Close 0.85s cubic-bezier(0.55, 0, 0.35, 1) both;
+  }
+
+  .hero-book-stage[data-closing="true"] .hero-book-leaf-2 {
+    animation: heroLeaf2Close 0.85s cubic-bezier(0.55, 0, 0.35, 1) 0.12s both;
+  }
+
+  .hero-book-stage[data-closing="true"] .hero-book-cover {
+    animation: heroCoverClose 0.85s cubic-bezier(0.55, 0, 0.35, 1) 0.24s both;
+  }
+
+  @keyframes heroCoverClose {
+    from {
+      transform: rotateY(-178deg);
+    }
+    to {
+      transform: rotateY(0deg);
+    }
+  }
+
+  @keyframes heroLeaf2Close {
+    from {
+      transform: rotateY(-174deg);
+    }
+    to {
+      transform: rotateY(0deg);
+    }
+  }
+
+  @keyframes heroLeaf3Close {
+    from {
+      transform: rotateY(-169deg);
+    }
+    to {
+      transform: rotateY(0deg);
+    }
+  }
+
+  /* Бұрыш неғұрлым 180°-қа жақын болса, парақ солғұрлым терең ашылады да,
+     фанның астында қалады. Сондықтан мазмұны бар leaf-3 ең аз бұрылады —
+     ол фанның үстінде, жазыңқы күйде тұрып, сол жақ бет болады. */
+  @keyframes heroCoverOpen {
+    from {
+      transform: rotateY(0deg);
+    }
+    to {
+      transform: rotateY(-178deg);
+    }
+  }
+
+  @keyframes heroLeaf2Open {
+    from {
+      transform: rotateY(0deg);
+    }
+    to {
+      transform: rotateY(-174deg);
+    }
+  }
+
+  @keyframes heroLeaf3Open {
+    from {
+      transform: rotateY(0deg);
+    }
+    to {
+      transform: rotateY(-169deg);
+    }
+  }
+
+  @keyframes heroBookSettle {
+    from {
+      opacity: 0;
+      transform: translateY(46px) scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes heroBookLine {
+    from {
+      transform: scaleX(0);
+      opacity: 0;
+    }
+    to {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+  }
+
+  /* ---- Беттегі нақты мазмұн (пәндер каталогы) ---- */
+
+  /* Бет мәтіні жүйелік қаріппен: JUZ40 — тақырыптық қаріп, 3D бұрылған бетте
+     шағын өлшемде бұлыңғыр оқылады. Атау ғана бренд қарпінде қалады. */
+  .hero-page {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .hero-page-eyebrow {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #0369a1;
+  }
+
+  .dark .hero-page-eyebrow {
+    color: #67e8f9;
+  }
+
+  .hero-page-title {
+    font-family: var(--font-juz-sans), system-ui, sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+  }
+
+  .dark .hero-page-title {
+    color: #f1f5f9;
+  }
+
+  .hero-page-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.98rem;
+    line-height: 1.6;
+    color: #475569;
+  }
+
+  .dark .hero-page-desc {
+    color: #98a2af;
+  }
+
+  .hero-page-meta {
+    margin-top: 0.15rem;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .dark .hero-page-meta {
+    color: #8b939e;
+  }
+
+  .hero-page-cta {
+    margin-top: 0.45rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #0369a1;
+  }
+
+  .dark .hero-page-cta {
+    color: #67e8f9;
+  }
+
+  /* height:100% қоюға болмайды — беттің padding-імен қосылып, мазмұн беттен
+     асып кетеді де, overflow:hidden оны қиып тастайды. */
+  .hero-page-cover {
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1.1rem;
+  }
+
+  .hero-page-initial {
+    font-family: var(--font-juz-sans), system-ui, sans-serif;
+    font-size: 4.5rem;
+    font-weight: 800;
+    line-height: 0.9;
+    letter-spacing: -0.05em;
+    color: rgba(3, 105, 161, 0.22);
+  }
+
+  .dark .hero-page-initial {
+    color: rgba(103, 232, 249, 0.2);
+  }
+
+  .hero-page-index {
+    font-family: var(--font-juz-sans), system-ui, sans-serif;
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #0f172a;
+  }
+
+  .hero-page-index i {
+    font-size: 0.95rem;
+    font-style: normal;
+    font-weight: 600;
+    color: #94a3b8;
+  }
+
+  .dark .hero-page-index {
+    color: #e2e8f0;
+  }
+
+  /* ---- Бет ауыстыру анимациясы ---- */
+
+  /* Нағыз парақ: екі жағы бар да, аударылғанда сырты көрінеді */
+  .hero-book-turner {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    animation: heroPageTurnNext 0.9s cubic-bezier(0.44, 0.05, 0.3, 1) both;
+    will-change: transform;
+  }
+
+  .hero-book-turner[data-dir="prev"] {
+    animation-name: heroPageTurnPrev;
+  }
+
+  .hero-book-turner-face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.85rem;
+    padding: 2.1rem 1.7rem;
+    border-radius: 4px 14px 14px 4px;
+    overflow: hidden;
+    backface-visibility: hidden;
+    background: linear-gradient(150deg, #ffffff, #f1f5f9);
+  }
+
+  .hero-book-turner-front {
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05), inset 26px 0 34px -30px rgba(15, 23, 42, 0.4);
+  }
+
+  .hero-book-turner-back {
+    transform: rotateY(180deg);
+    background: linear-gradient(150deg, #f8fafc, #e9eef5);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05), inset -26px 0 34px -30px rgba(15, 23, 42, 0.4);
+  }
+
+  .dark .hero-book-turner-face {
+    background: linear-gradient(150deg, #1e242e, #171b22);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 26px 0 34px -30px rgba(0, 0, 0, 0.8);
+  }
+
+  .dark .hero-book-turner-back {
+    background: linear-gradient(150deg, #1a1f27, #12161c);
+  }
+
+  /* Аударылу кезінде параққа түсетін көлеңке — қозғалысқа көлем береді */
+  .hero-book-turner-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(15, 23, 42, 0.22), transparent 42%);
+    opacity: 0;
+    animation: heroPageShade 0.9s ease-in-out both;
+  }
+
+  @keyframes heroPageShade {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes heroPageTurnNext {
+    from {
+      transform: translateZ(3px) rotateY(0deg);
+    }
+    to {
+      transform: translateZ(3px) rotateY(-179deg);
+    }
+  }
+
+  @keyframes heroPageTurnPrev {
+    from {
+      transform: translateZ(3px) rotateY(-179deg);
+    }
+    to {
+      transform: translateZ(3px) rotateY(0deg);
+    }
+  }
+
+  /* ---- Бет ауыстыру батырмалары ---- */
+
+  .hero-book-nav {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .hero-book-nav button {
+    display: inline-flex;
+    height: 2.5rem;
+    width: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: rgba(255, 255, 255, 0.9);
+    color: #334155;
+    transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .hero-book-nav button:hover:not(:disabled) {
+    border-color: #7dd3fc;
+    color: #0369a1;
+    transform: translateY(-1px);
+  }
+
+  .hero-book-nav button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .dark .hero-book-nav button {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(24, 24, 27, 0.9);
+    color: #d4d4d8;
+  }
+
+  .dark .hero-book-nav button:hover:not(:disabled) {
+    border-color: rgba(34, 211, 238, 0.5);
+    color: #67e8f9;
+  }
+
+  .hero-book-nav-count {
+    min-width: 4.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: #64748b;
+  }
+
+  .dark .hero-book-nav-count {
+    color: #8b939e;
+  }
+
+  /* Қағаз тақырыбында кітап беттері де жылы түске көшеді, әйтпесе сепия фонда
+     қара-көк кітап жат болып тұрады. Мұқаба бренд түсінде қалады. */
+  html[data-paper-active="true"] .hero-book-back,
+  html[data-paper-active="true"] .hero-book-leaf-front,
+  html[data-paper-active="true"] .hero-book-turner-face {
+    background: linear-gradient(150deg, var(--paper-surface), var(--paper-surface-2));
+  }
+
+  html[data-paper-active="true"] .hero-page-title,
+  html[data-paper-active="true"] .hero-page-index {
+    color: var(--paper-text);
+  }
+
+  html[data-paper-active="true"] .hero-page-initial {
+    color: color-mix(in srgb, var(--paper-accent) 22%, transparent);
+  }
+
+  html[data-paper-active="true"] .hero-page-desc,
+  html[data-paper-active="true"] .hero-page-meta,
+  html[data-paper-active="true"] .hero-book-nav-count,
+  html[data-paper-active="true"] .hero-page-index i {
+    color: var(--paper-muted);
+  }
+
+  html[data-paper-active="true"] .hero-page-eyebrow,
+  html[data-paper-active="true"] .hero-page-cta {
+    color: var(--paper-accent);
+  }
+
+  html[data-paper-active="true"] .hero-book-nav button {
+    background: var(--paper-surface);
+    border-color: var(--paper-line);
+    color: var(--paper-text);
+  }
+
+  html[data-paper-active="true"] .hero-book-leaf-back,
+  html[data-paper-active="true"] .hero-book-cover-inner {
+    background: linear-gradient(150deg, var(--paper-surface-2), var(--paper-surface));
+  }
+
+  html[data-paper-active="true"] .hero-book-line {
+    background: var(--paper-line);
+  }
+
+  /* Телефон: кітап көрсетілмейді — биіктігі экранға сыймай, hero сөнген кезде
+     жартылай көрініп тұратын блок болып қалады. */
+  @media (max-width: 1023px) {
+    .hero-book-stage {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-book,
+    .hero-book-line,
+    .hero-book-glow {
+      animation: none !important;
+    }
+
+    .hero-book-leaf {
+      transition: none !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-hidden {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+
+    .hero-rise,
+    .hero-line,
+    .hero-rule,
+    .glow-drift-a,
+    .glow-drift-b {
+      animation: none !important;
+    }
+  }
+}
+
+/* Аудио оқып жатқанда оқылып тұрған сөз ерекшеленеді.
+   Ереже CSS файлында емес, components/reader/use-audio-word-highlight.ts
+   ішінде JS арқылы қосылады: ::highlight() синтаксисін кейбір CSS
+   талдағыштары (Turbopack/lightningcss) танымай, құрастыруды құлатады. */
+
+
+/* ================= Ағаш бағының үш бағаны =================
+   Су құю панелі бақтың оң жағында тұрады — сол себепті су құйылып
+   жатқанын бірден көруге болады. Рейтинг сол жақта, ал тар экранда
+   бәрі бір бағанға түсіп, рейтинг ең астына барады. */
+.garden-grid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.garden-col {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.garden-col--stage {
+  order: 1;
+}
+
+.garden-col--water {
+  order: 2;
+}
+
+.garden-col--rank {
+  order: 3;
+}
+
+@media (min-width: 1180px) {
+  .garden-grid {
+    grid-template-columns: 320px minmax(0, 1fr) 340px;
+  }
+
+  .garden-col--rank {
+    order: 1;
+  }
+
+  .garden-col--stage {
+    order: 2;
+  }
+
+  .garden-col--water {
+    order: 3;
+    position: sticky;
+    top: 92px;
+  }
+}
+
+/* ================= Спецификация бөлімінің ашылуы =================
+   Биіктік grid-template-rows арқылы өлшенеді — JS-пен биіктік санаудың
+   қажеті жоқ, әрі мазмұн өзгерсе де өтпелі жұмсақ болып қалады. */
+.spec-reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.55s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+}
+
+.spec-reveal.is-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spec-reveal__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Карточкалар кезекпен, төменнен көтеріліп шығады */
+.spec-card {
+  animation: specCardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes specCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Жүктелу кезіндегі қаңқа */
+.spec-skeleton {
+  animation: specSkeleton 1.25s ease-in-out infinite;
+}
+
+@keyframes specSkeleton {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spec-reveal,
+  .spec-card,
+  .spec-skeleton {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Іздеу үзіндісіндегі сары сөз — өз алдына сілтеме: басқанда мәтіндегі
+   дәл сол сөзге апарады. */
+.search-snippet mark[data-hit] {
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.search-snippet mark[data-hit]:hover {
+  background-color: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.32);
+}
+
+/* Әкімші редакторымен жазылған сұрақ мәтіні: негізгі пішімдеу сақталады */
+.rich-question {
+  display: inline;
+}
+
+.rich-question p {
+  display: inline;
+  margin: 0;
+}
+
+.rich-question b,
+.rich-question strong {
+  font-weight: 600;
+}
+
+.rich-question i,
+.rich-question em {
+  font-style: italic;
+}
+
+.rich-question u {
+  text-decoration: underline;
+}
+
+.rich-question sub {
+  vertical-align: sub;
+  font-size: 0.75em;
+}
+
+.rich-question sup {
+  vertical-align: super;
+  font-size: 0.75em;
+}
+
+.rich-question img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.rich-question table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.rich-question td,
+.rich-question th {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  padding: 0.4rem 0.6rem;
+}
+
+/* ================= Флешкарта: 3D айналу =================
+   Карточка басқанда Y осі бойынша жұмсақ айналады. Қағаз тақырыбы қосулы
+   кезде (оқу беті) түстері қағаз бен оның акцентіне бейімделеді. */
+
+.flip-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  perspective: 1600px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.flip-card-lg {
+  height: clamp(15rem, 40vh, 21rem);
+}
+
+.flip-card-sm {
+  height: 10.5rem;
+}
+
+.flip-card-inner {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-style: preserve-3d;
+  transition: transform 0.8s cubic-bezier(0.22, 0.9, 0.24, 1.02);
+  will-change: transform;
+}
+
+.flip-card-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+/* Меңзер тұрғанда аздап қисаяды — карточканың айналатынын аңғартады */
+@media (hover: hover) {
+  .flip-card:hover .flip-card-inner {
+    transform: rotateY(-7deg);
+  }
+
+  .flip-card:hover .flip-card-inner.is-flipped {
+    transform: rotateY(187deg);
+  }
+}
+
+.flip-card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.4rem 1.6rem;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 1.6rem;
+  box-shadow: 0 26px 60px -34px rgba(15, 23, 42, 0.5);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.flip-card-sm .flip-card-face {
+  gap: 0.35rem;
+  padding: 1rem 1.15rem;
+  border-radius: 1.25rem;
+}
+
+.flip-card-front {
+  background: linear-gradient(150deg, #ffffff 0%, #eef7ff 100%);
+  color: #0f172a;
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+  border-color: transparent;
+  background: linear-gradient(150deg, #0284c7 0%, #0f766e 100%);
+  color: #f8fafc;
+}
+
+.dark .flip-card-front {
+  border-color: rgba(63, 63, 70, 0.9);
+  background: linear-gradient(150deg, #18181b 0%, #0b1a24 100%);
+  color: #f4f4f5;
+}
+
+.dark .flip-card-back {
+  background: linear-gradient(150deg, #0e7490 0%, #047857 100%);
+}
+
+html[data-paper-active="true"] .flip-card-front {
+  border-color: var(--paper-line);
+  background: var(--paper-surface);
+  color: var(--paper-text);
+}
+
+html[data-paper-active="true"] .flip-card-back {
+  background: linear-gradient(150deg, var(--paper-accent) 0%, var(--paper-accent-2) 100%);
+  color: var(--paper-on-accent);
+}
+
+.flip-card-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.flip-card-text {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.flip-card-sm .flip-card-text {
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.flip-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.flip-card-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flip-card-hint {
+  flex-shrink: 0;
+}
+
+.flip-card:focus-visible {
+  outline: none;
+}
+
+.flip-card:focus-visible .flip-card-face {
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.55), 0 26px 60px -34px rgba(15, 23, 42, 0.5);
+}
+
+/* Жаттау режимінде келесі/алдыңғы карточка сырғып кіреді */
+@keyframes flashcardEnterNext {
+  from {
+    opacity: 0;
+    transform: translateX(2.5rem) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes flashcardEnterPrev {
+  from {
+    opacity: 0;
+    transform: translateX(-2.5rem) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.flashcard-enter-next {
+  animation: flashcardEnterNext 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.flashcard-enter-prev {
+  animation: flashcardEnterPrev 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip-card-inner {
+    transition-duration: 0.01ms;
+  }
+
+  .flashcard-enter-next,
+  .flashcard-enter-prev {
+    animation: none;
+  }
+}
+
+/* ================= Мини-персонаж ================= */
+
+.avatar-stage {
+  min-height: 23rem;
+  background:
+    linear-gradient(180deg, transparent 0%, transparent 82%, #6cb24a 82%, #4f8f34 90%, #7a5230 90%, #5c3b22 100%),
+    linear-gradient(180deg, #bfe7ff 0%, #e8f6ff 70%);
+}
+
+.dark .avatar-stage {
+  background:
+    linear-gradient(180deg, transparent 0%, transparent 82%, #3f7a2c 82%, #2e5c20 90%, #4a321d 90%, #33220f 100%),
+    linear-gradient(180deg, #0b1633 0%, #16274d 70%);
+}
+
+@keyframes avatarIdle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.avatar-idle {
+  margin-bottom: 1.1rem;
+  animation: avatarIdle 2.8s ease-in-out infinite;
+}
+
+@keyframes wardrobeReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wardrobe-reveal {
+  animation: wardrobeReveal 0.28s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar-idle,
+  .wardrobe-reveal {
+    animation: none;
+  }
+}

@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  name          String
+  isAgreedToTerms Boolean      @default(false)
+  schoolName    String?
+  grade         String?
+  direction     String?
+  role          Role           @default(USER)
+  currentStreak Int            @default(1)
+  totalReadingSeconds Int      @default(0)
+  lastLoginDate DateTime?
+  progress      UserProgress[]
+  highlights    Highlight[]
+  notes         Note[]
+  bookReadingStats BookReadingStat[]
+  passwordResetTokens PasswordResetToken[]
+  createdQuestions TopicQuestion[]
+  questionAttempts QuestionAttempt[]
+  createdAudios TopicAudio[]
+  state         UserState?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  /// Оқушыны пошта арқылы тез табу үшін керек.
+  @@index([email])
+}
+
+model BookReadingStat {
+  id           String   @id @default(cuid())
+  userId       String
+  bookId       String
+  totalSeconds Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([bookId])
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Subject {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  /// Пәнді оқырманнан жасыру: кітаптары әлі жүктелмеген пәндер үшін.
+  /// Әкімшіде жасырылған пән де көрініп тұрады.
+  isHidden    Boolean  @default(false)
+  books       Book[]
+  specifications Specification[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// Пән атауы бойынша каталог іздеуді жылдамдатады.
+  @@index([name])
+}
+
+model Book {
+  id         String      @id @default(cuid())
+  title      String
+  order      Int         @default(0)
+  isHidden   Boolean     @default(false)
+  coverImage String?
+  sourceInfo String?
+  sourceLink String?
+  theme      String      @default("sky")
+  pdfFileName String?
+  pdfData     String?   @db.Text
+  hasPdf      Boolean   @default(false)
+  subjectId  String
+  subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  sections   Section[]
+  chapters   Chapter[]
+  highlights Highlight[]
+  notes      Note[]
+  readingStats BookReadingStat[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  /// Пән ішіндегі кітаптарды тез ашуға керек.
+  @@index([subjectId])
+  @@index([subjectId, order])
+  @@index([subjectId, title])
+  @@index([subjectId, isHidden])
+}
+
+model Section {
+  id        String         @id @default(cuid())
+  title     String
+  order     Int
+  isHidden  Boolean        @default(false)
+  bookId    String
+  book      Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapters  SectionChapter[]
+  topics    Chapter[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  /// Кітап ішіндегі бөлімдерді ретімен тез алу үшін керек.
+  @@index([bookId])
+  @@index([bookId, order])
+  @@index([bookId, isHidden])
+}
+
+model SectionChapter {
+  id        String    @id @default(cuid())
+  title     String
+  order     Int
+  isHidden  Boolean   @default(false)
+  sectionId String
+  section   Section   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  topics    Chapter[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  /// Бұл модель тарау деңгейіндегі навигацияны жылдамдатады.
+  @@index([sectionId])
+  @@index([sectionId, order])
+  @@index([sectionId, isHidden])
+}
+
+model Chapter {
+  id               String         @id @default(cuid())
+  title            String
+  content          String
+  excerpt          String
+  pdfPage          Int?
+  order            Int
+  isHidden         Boolean        @default(false)
+  bookId           String
+  sectionId        String?
+  sectionChapterId String?
+  book             Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  section          Section?       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  sectionChapter   SectionChapter? @relation(fields: [sectionChapterId], references: [id], onDelete: Cascade)
+  progress         UserProgress[]
+  highlights       Highlight[]
+  notes            Note[]
+  specificationLinks SpecificationTopic[]
+  questions        TopicQuestion[]
+  audios           TopicAudio[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  /// Бұл модель қазіргі құрылымда нақты тақырып мәтінін сақтайды.
+  @@index([bookId])
+  @@index([sectionChapterId])
+  @@index([bookId, sectionChapterId, order])
+  @@index([bookId, isHidden])
+}
+
+model Specification {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  order       Int      @default(0)
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topics      SpecificationTopic[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([subjectId])
+  @@index([subjectId, order])
+}
+
+model SpecificationTopic {
+  id              String        @id @default(cuid())
+  specificationId String
+  topicId         String
+  order           Int           @default(0)
+  specification   Specification @relation(fields: [specificationId], references: [id], onDelete: Cascade)
+  topic           Chapter       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([specificationId, topicId])
+  @@index([specificationId, order])
+  @@index([topicId])
+}
+
+model UserProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  chapterId   String
+  isCompleted Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([chapterId])
+}
+
+model Highlight {
+  id           String   @id @default(cuid())
+  userId       String
+  bookId       String
+  chapterId    String
+  selectedText String
+  paragraphId  String?
+  color        String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapter      Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  /// Маркерлерді оқушы, кітап және тарау бойынша тез сүзуге керек.
+  @@index([userId])
+  @@index([bookId])
+  @@index([chapterId])
+  @@index([userId, bookId, chapterId])
+}
+
+model Note {
+  id           String   @id @default(cuid())
+  userId       String
+  bookId       String
+  topicId      String
+  selectedText String?
+  paragraphId  String?
+  noteText     String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  topic        Chapter  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  /// Конспекттерді оқушы және тақырып бойынша тез ашуға керек.
+  @@index([userId])
+  @@index([topicId])
+  @@index([userId, topicId])
+}
+
+/// Тақырыпқа алдын ала дайындалған сұрақтар банкі.
+/// Бір тақырыпқа бір ортақ база — барлық оқушы содан алады,
+/// сондықтан ИИ-ге қайта-қайта сұраныс кетпейді.
+model TopicQuestion {
+  id          String   @id @default(cuid())
+  chapterId   String
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  prompt      String
+  options     String[]
+  answerIndex Int
+  explanation String   @default("")
+  difficulty  String   @default("medium")
+  /// ai — ИИ құрған, admin — әкімші қосқан, student — оқушы құрған
+  source      String   @default("ai")
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  attempts    QuestionAttempt[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([chapterId])
+  @@index([chapterId, difficulty])
+}
+
+/// Оқушының қай сұраққа жауап бергенін есте сақтайды —
+/// сол арқылы "бітті ме" дегенді анықтаймыз.
+model QuestionAttempt {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  question   TopicQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  isCorrect  Boolean
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([userId, questionId])
+  @@index([userId])
+}
+
+
+/// Алдын ала дайындалған тақырып аудиосы.
+/// Аудио файл дискіде сақталады, ал `marks` — әр сөздің басталу уақыты,
+/// сол арқылы оқу кезінде дәл сол сөз мәтінде ерекшеленеді.
+model TopicAudio {
+  id          String   @id @default(cuid())
+  chapterId   String
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  voice       String   @default("kk-KZ-AigulNeural")
+  fileName    String
+  byteSize    Int      @default(0)
+  durationMs  Int      @default(0)
+  wordCount   Int      @default(0)
+  /// [{ t: миллисекунд, d: ұзақтығы, w: сөз }]
+  marks       Json
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([chapterId, voice])
+  @@index([chapterId])
+}
+
+
+/// Оқушының құрылғылар арасында сақталатын күйі.
+/// Ағаш бағы, оқу прогресі, конспект, маркерлер — бәрі осы жерде,
+/// сондықтан басқа компьютерден кірген кезде де сол деректер ашылады.
+model UserState {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Клиенттегі күйдің толық көшірмесі
+  data      Json
+  /// Клиент жазған соңғы өзгеріс уақыты (миллисекунд)
+  version   BigInt   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

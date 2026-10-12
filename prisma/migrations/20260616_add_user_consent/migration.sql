@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ADD COLUMN "isAgreedToTerms" BOOLEAN NOT NULL DEFAULT false;
