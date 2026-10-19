@@ -1,5 +1,4 @@
 import { arenaPrisma } from "@/lib/arena/db";
-import { prisma } from "@/lib/prisma";
 
 /**
  * Arena-да қай пәнде ойнауға болатынын анықтайды.
@@ -9,8 +8,9 @@ import { prisma } from "@/lib/prisma";
  * сұрақ шығады. Сондықтан пән әр деңгей бойынша ең аз мөлшерден өткенде ғана
  * ұсынылады.
  *
- * Пән атаулары оқу бөлігінің дерекқорынан алынады — ол тек бет ашылғанда
- * ғана, матч кезінде емес.
+ * Пән атаулары Arena-ның өз базасында сақталады (себу скрипті көшіреді),
+ * сондықтан бұл модуль оқу бөлігінің PostgreSQL-іне мүлде жүгінбейді —
+ * Arena-ны бөлек орналастыруға болады.
  */
 
 /** Бір матчтағы сұрақ саны және деңгей бойынша бөлінісі */
@@ -53,8 +53,7 @@ async function countBySubject() {
 export async function listArenaSubjects(): Promise<ArenaSubject[]> {
   const [counts, subjects] = await Promise.all([
     countBySubject(),
-    prisma.subject.findMany({
-      where: { isHidden: false },
+    arenaPrisma.arenaSubject.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true, description: true }
     })

@@ -12,13 +12,20 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "arena:generate": "prisma generate --schema=prisma/arena.prisma",
+    "arena:push": "prisma db push --schema=prisma/arena.prisma",
+    "arena:seed": "node --env-file=.env scripts/arena_seed_questions.mjs",
+    "arena:turso": "node --env-file=.env scripts/arena_push_to_turso.mjs",
+    "postinstall": "prisma generate && prisma generate --schema=prisma/arena.prisma"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-build-classic": "^44.3.0",
     "@ckeditor/ckeditor5-react": "^9.5.0",
     "@google/genai": "^1.52.0",
     "@hookform/resolvers": "^5.4.0",
+    "@libsql/client": "^0.15.15",
+    "@prisma/adapter-libsql": "^6.19.3",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^6.8.2",
     "bcryptjs": "^3.0.3",

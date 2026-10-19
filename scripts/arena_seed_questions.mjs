@@ -23,6 +23,21 @@ const onlySubject = (args.find((value) => value.startsWith("--subject=")) || "")
 /** Бір жолы осынша жазба оқылады — жады толып кетпеуі үшін */
 const PAGE = 2000;
 
+// Пәндер де көшіріледі: Arena бет ашылғанда да PostgreSQL-ге бармауы керек,
+// әйтпесе оны бөлек орналастыру мүмкін болмайды.
+const subjects = await reader.subject.findMany({
+  where: { isHidden: false },
+  select: { id: true, name: true, description: true }
+});
+for (const subject of subjects) {
+  await arena.arenaSubject.upsert({
+    where: { id: subject.id },
+    create: subject,
+    update: { name: subject.name, description: subject.description }
+  });
+}
+console.log(`пән көшірілді: ${subjects.length}`);
+
 const existing = new Set(
   (await arena.arenaQuestionBank.findMany({ select: { sourceId: true } })).map((row) => row.sourceId)
 );
