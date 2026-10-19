@@ -41,3 +41,5 @@ app/dev-arena/
 # ── ОЖ қоқысы ──
 .DS_Store
 Thumbs.db
+.vercel
+.env*
