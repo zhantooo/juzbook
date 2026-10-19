@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { prisma } from "@/lib/prisma";
 
 /** Аудиодағы бір сөздің уақыт белгісі */
 export type AudioMark = {
@@ -142,4 +143,126 @@ export async function synthesizeAudio(options: {
   } finally {
     await fs.unlink(marksPath).catch(() => undefined);
   }
+}
+
+/**
+ * Бір тақырыптың аудиосын дайындап, сақтайды.
+ *
+ * Әкімшінің топтамалық дайындауы да, оқушының «аудио тыңдау» түймесі де осы
+ * бір жолдан өтеді: файл да, сөздердің уақыт белгілері де бірдей сақталады.
+ * Бұрын оқушының жолы бөлек болатын да, белгілер жоғалып, оқылып жатқан сөз
+ * мәтінде ерекшеленбейтін.
+ */
+export async function prepareChapterAudio(options: {
+  chapterId: string;
+  voice: AudioVoice;
+  /** Бар аудионы қайта жасау керек пе */
+  force?: boolean;
+  createdById?: string | null;
+}) {
+  const { chapterId, voice } = options;
+  const key = `${chapterId}:${voice}`;
+
+  // Екі оқушы бір тақырыпты қатар ашса, бір файлға екі процесс жазып,
+  // MP3 бүлінер еді. Сондықтан жүріп жатқан дайындауға қосыламыз.
+  const running = inFlight.get(key);
+  if (running) {
+    return running;
+  }
+
+  const task = runPrepare(options).finally(() => {
+    inFlight.delete(key);
+  });
+
+  inFlight.set(key, task);
+  return task;
+}
+
+/** Жүріп жатқан дайындаулар: кілт — тақырып пен дауыс */
+const inFlight = new Map<string, Promise<{ created: boolean; row: TopicAudioRow }>>();
+
+type TopicAudioRow = Awaited<ReturnType<typeof prisma.topicAudio.upsert>>;
+
+async function runPrepare(options: {
+  chapterId: string;
+  voice: AudioVoice;
+  force?: boolean;
+  createdById?: string | null;
+}): Promise<{ created: boolean; row: TopicAudioRow }> {
+  const { chapterId, voice, force = false, createdById = null } = options;
+
+  const existing = await prisma.topicAudio.findUnique({
+    where: { chapterId_voice: { chapterId, voice } }
+  });
+
+  if (existing && !force) {
+    return { created: false, row: existing };
+  }
+
+  const chapter = await prisma.chapter.findUnique({
+    where: { id: chapterId },
+    select: { id: true, title: true, content: true }
+  });
+
+  if (!chapter) {
+    throw new Error("Тақырып табылмады.");
+  }
+
+  const text = buildAudioText(chapter.title, chapter.content);
+  if (text.length < 40) {
+    throw new Error("Аудио жасауға мәтін тым қысқа.");
+  }
+
+  const fileName = `${chapter.id}--${voice}.mp3`;
+  const outputPath = path.join(getAudioStorageDir(), fileName);
+
+  try {
+    const audio = await synthesizeAudio({ text, voice, outputPath });
+
+    const row = await prisma.topicAudio.upsert({
+      where: { chapterId_voice: { chapterId: chapter.id, voice } },
+      create: {
+        chapterId: chapter.id,
+        voice,
+        fileName,
+        byteSize: audio.byteSize,
+        durationMs: audio.durationMs,
+        wordCount: audio.marks.length,
+        marks: audio.marks,
+        createdById
+      },
+      update: {
+        fileName,
+        byteSize: audio.byteSize,
+        durationMs: audio.durationMs,
+        wordCount: audio.marks.length,
+        marks: audio.marks
+      }
+    });
+
+    return { created: true, row };
+  } catch (error) {
+    await fs.unlink(outputPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Клиентке берілетін түрі */
+export function describeTopicAudio(row: {
+  id: string;
+  chapterId: string;
+  voice: string;
+  durationMs: number;
+  wordCount: number;
+  marks: unknown;
+}) {
+  return {
+    id: row.id,
+    chapterId: row.chapterId,
+    voice: row.voice,
+    durationMs: row.durationMs,
+    wordCount: row.wordCount,
+    url: `/api/topic-audio/file/${row.id}`,
+    marks: (row.marks as unknown as AudioMark[]) ?? []
+  };
 }

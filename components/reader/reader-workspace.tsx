@@ -899,29 +899,30 @@ export function ReaderWorkspace({
     setAudioNotice("");
     setIsSpeechPaused(false);
     try {
-      const plainText = resolved.chapter.content
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      const topicText = `${resolved.chapter.title}. ${plainText}`;
-
-      const response = await fetch("/api/audio/topic", {
+      // Аудио серверде сақталады да, сөздердің уақыт белгілерімен бірге
+      // қайтады. Сондықтан оқылып жатқан сөз мәтінде ерекшеленеді, ал
+      // келесі оқушыға бұл тақырып бірден дайын болады.
+      const response = await fetch("/api/topic-audio/prepare", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          text: topicText,
+          chapterId: resolved.chapter.id,
           voice: audioVoice
         })
       });
 
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as {
+        ready?: boolean;
+        audio?: { url: string; marks: AudioMark[] };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ready || !payload.audio) {
         throw new Error(payload.error || "Аудио жасау мүмкін болмады.");
       }
 
-      const blob = await response.blob();
       if (browserSpeechSupported) {
         window.speechSynthesis.cancel();
       }
@@ -929,11 +930,12 @@ export function ReaderWorkspace({
       setUseBrowserVoice(false);
       setSpokenParagraphId(null);
       setSpokenText(null);
-      if (audioUrl) {
+      if (audioUrl.startsWith("blob:")) {
         URL.revokeObjectURL(audioUrl);
       }
-      const nextAudioUrl = URL.createObjectURL(blob);
-      setAudioUrl(nextAudioUrl);
+      setAudioUrl(payload.audio.url);
+      setAudioMarks(payload.audio.marks ?? []);
+      setIsAudioPrepared(true);
       window.setTimeout(() => {
         audioRef.current?.play().catch(() => undefined);
       }, 120);
