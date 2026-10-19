@@ -32,6 +32,9 @@ export async function POST(request: Request) {
   const scriptPath = path.join(process.cwd(), "scripts", "topic_podcast.py");
   const pythonExecutable = getPythonExecutable();
 
+  // Диагностикаға: скрипттің нақты қатесі dev режимінде жауапқа қосылады
+  let lastStderr = "";
+
   try {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(pythonExecutable, [scriptPath, safeText, outputFilePath, voice], {
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
 
       child.on("error", (error) => reject(error));
       child.on("close", (code) => {
+        lastStderr = stderr;
         if (code === 0) {
           resolve();
           return;
@@ -83,7 +87,10 @@ export async function POST(request: Request) {
     await fs.unlink(outputFilePath).catch(() => undefined);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Аудио жасау кезінде қате пайда болды."
+        error: error instanceof Error ? error.message : "Аудио жасау кезінде қате пайда болды.",
+        // Диагностика dev режимінде ғана: өнімде скрипттің ішкі қатесі
+        // пайдаланушыға көрсетілмеуі керек
+        ...(process.env.NODE_ENV === "development" ? { stderr: lastStderr.slice(0, 1200) } : {})
       },
       { status: 500 }
     );

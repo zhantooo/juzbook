@@ -7,6 +7,7 @@ import { Clock3, Hash, Swords, Trophy, Users } from "lucide-react";
 import { RouteGuard } from "@/components/auth/route-guard";
 import { SiteHeader } from "@/components/site/site-header";
 import { formatCount } from "@/lib/arena/format";
+import { httpArenaService as service } from "@/lib/arena/service.http";
 import type { ArenaSubject } from "@/lib/arena/subjects";
 
 /** Жекпе-жек ережесі — бетте бір рет түсіндіріледі */
@@ -30,19 +31,31 @@ export function ArenaHomeContent({ subjects }: { subjects: ArenaSubject[] }) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState("");
+  const [joining, setJoining] = useState(false);
 
   const playable = subjects.filter((subject) => subject.playable);
   const pending = subjects.filter((subject) => !subject.playable);
 
-  function joinByCode(event: React.FormEvent) {
+  async function joinByCode(event: React.FormEvent) {
     event.preventDefault();
     const clean = code.trim().toUpperCase();
     if (clean.length < 4) {
       setCodeError("Код кемінде 4 таңбадан тұрады.");
       return;
     }
+
     setCodeError("");
-    router.push(`/arena/match/${encodeURIComponent(clean)}`);
+    setJoining(true);
+    try {
+      // Код матчтың нақты мекенжайын береді: пәнді таңдаудың қажеті жоқ,
+      // өйткені пәнді бөлмені ашқан ойыншы таңдап қойған.
+      const joined = await service.joinByCode(clean);
+      router.push(`/arena/match/${encodeURIComponent(joined.matchId)}`);
+    } catch (caught) {
+      setCodeError(caught instanceof Error ? caught.message : "Бұл код бойынша матч табылмады.");
+    } finally {
+      setJoining(false);
+    }
   }
 
   return (
@@ -133,7 +146,9 @@ export function ArenaHomeContent({ subjects }: { subjects: ArenaSubject[] }) {
           <section className="mt-10 max-w-xl">
             <h2 className="text-xl font-semibold">Досыңмен ойна</h2>
             <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-zinc-400">
-              Қарсыласың код жіберсе, соны енгіз — тікелей сол матчқа кіресің.
+              Код пәнді таңдағанда беріледі: жоғарыдан пәнді ашып, «Досты шақыру» дегенді бассаң,
+              бес таңбалы код шығады. Соны досыңа жібересің, ол осы жерге енгізеді — екеуіңе матч
+              бірдей сәтте басталады.
             </p>
             <form onSubmit={joinByCode} className="mt-4 flex flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
@@ -157,9 +172,10 @@ export function ArenaHomeContent({ subjects }: { subjects: ArenaSubject[] }) {
               </div>
               <button
                 type="submit"
-                className="h-12 shrink-0 rounded-full bg-slate-900 px-6 text-sm font-semibold text-white dark:bg-zinc-100 dark:text-zinc-950"
+                disabled={joining}
+                className="h-12 shrink-0 rounded-full bg-slate-900 px-6 text-sm font-semibold text-white disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-950"
               >
-                Қосылу
+                {joining ? "Қосылуда…" : "Қосылу"}
               </button>
             </form>
           </section>

@@ -4,24 +4,34 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Clock3, Loader2, RotateCcw, Swords, Trophy, X } from "lucide-react";
 import { QUESTION_MS } from "@/lib/arena/scoring";
-import { mockArenaService } from "@/lib/arena/service.mock";
-import type { MatchOutcome, MatchState, QuestionResult } from "@/lib/arena/service";
+import { httpArenaService } from "@/lib/arena/service.http";
+import type { ArenaService, MatchOutcome, MatchState, QuestionResult } from "@/lib/arena/service";
 
 /**
  * Жекпе-жек экраны.
  *
- * Әзірге мок қызметпен жұмыс істейді: интерфейс backend дайын болмай тұрып
- * толық құрастырылады. Нағыз қызметке ауысу бір жолмен болады, өйткені екеуі
- * бірдей интерфейсті іске асырады.
+ * Матч сервердің қолында: экран тек күйді сұрап, жауап жібереді. Қызмет
+ * интерфейсі мок нұсқасымен бірдей, сондықтан бұл жерде бір жол ғана өзгерді.
  */
 
-const service = mockArenaService;
 const OPTION_KEYS = ["1", "2", "3", "4"];
 const LETTERS = ["A", "B", "C", "D"];
 
-type Phase = "connecting" | "playing" | "answered" | "revealing" | "finished";
+type Phase = "connecting" | "waiting" | "playing" | "answered" | "revealing" | "finished";
 
-export function ArenaMatch({ subjectId, subjectName }: { subjectId: string; subjectName: string }) {
+/**
+ * `service` әдетте берілмейді — нағыз API қолданылады. Тек dev режиміндегі
+ * көзбен тексеру беті мок қызметті береді (кіру тексерісінен өтпей-ақ).
+ */
+export function ArenaMatch({
+  matchId,
+  subjectName,
+  service = httpArenaService
+}: {
+  matchId: string;
+  subjectName: string;
+  service?: ArenaService;
+}) {
   const [state, setState] = useState<MatchState | null>(null);
   const [result, setResult] = useState<QuestionResult | null>(null);
   const [outcome, setOutcome] = useState<MatchOutcome | null>(null);
@@ -29,47 +39,42 @@ export function ArenaMatch({ subjectId, subjectName }: { subjectId: string; subj
   const [selected, setSelected] = useState<number | null>(null);
   const [remaining, setRemaining] = useState(QUESTION_MS);
   const [error, setError] = useState("");
-  const matchRef = useRef<string | null>(null);
+  const matchRef = useRef<string | null>(matchId);
 
-  // Матчқа қосылу: мокта қарсылас бірден табылады
+  // Матч күйіне жазылу. Қарсылас күтіліп тұрса, күй «waiting» болып келеді.
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    let cancelled = false;
+    matchRef.current = matchId;
 
-    service
-      .joinQueue(subjectId)
-      .then((queue) => {
-        if (cancelled || queue.status !== "matched") {
-          return;
-        }
-        matchRef.current = queue.matchId;
-        unsubscribe = service.subscribe(queue.matchId, (event) => {
-          if (event.type === "state") {
-            setState(event.state);
-          } else if (event.type === "question") {
-            setState(event.state);
-            setResult(null);
-            setSelected(null);
-            setPhase("playing");
-          } else if (event.type === "answer-result") {
-            setState(event.state);
-            setResult(event.result);
-            setPhase("revealing");
-          } else if (event.type === "match-end") {
-            setOutcome(event.outcome);
-            setPhase("finished");
-          }
-        });
-      })
-      .catch((caught: unknown) => {
-        setError(caught instanceof Error ? caught.message : "Матчқа қосылу мүмкін болмады.");
-      });
+    const unsubscribe = service.subscribe(matchId, (event) => {
+      if (event.type === "state") {
+        setState(event.state);
+        // Жеке бөлмеде қарсылас әлі қосылмаған
+        setPhase((current) =>
+          event.state.status === "waiting"
+            ? "waiting"
+            : current === "connecting" || current === "waiting"
+              ? event.state.question
+                ? "playing"
+                : current
+              : current
+        );
+      } else if (event.type === "question") {
+        setState(event.state);
+        setResult(null);
+        setSelected(null);
+        setPhase("playing");
+      } else if (event.type === "answer-result") {
+        setState(event.state);
+        setResult(event.result);
+        setPhase("revealing");
+      } else if (event.type === "match-end") {
+        setOutcome(event.outcome);
+        setPhase("finished");
+      }
+    });
 
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
-  }, [subjectId]);
+    return unsubscribe;
+  }, [matchId, service]);
 
   // Қалған уақыт — тек көрсету үшін, шешімді сервер қабылдайды
   useEffect(() => {
@@ -96,7 +101,7 @@ export function ArenaMatch({ subjectId, subjectName }: { subjectId: string; subj
       setPhase("answered");
       void service.submitAnswer(matchId, state.question.position, index);
     },
-    [phase, state?.question]
+    [phase, service, state?.question]
   );
 
   // Пернетақтамен ойнау: 1–4 нұсқаны таңдайды
@@ -124,14 +129,35 @@ export function ArenaMatch({ subjectId, subjectName }: { subjectId: string; subj
   }
 
   if (outcome) {
-    return <ArenaOutcome outcome={outcome} subjectId={subjectId} />;
+    return <ArenaOutcome outcome={outcome} subjectId={outcome.subjectId} />;
+  }
+
+  // Жеке бөлме: қарсылас кодпен қосылғанша күтеміз
+  if (state && state.status === "waiting") {
+    return (
+      <div className="glass-card p-8 text-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-zinc-500">
+          Бөлме коды
+        </p>
+        <p className="mt-3 font-mono text-[clamp(2.2rem,12vw,3.4rem)] font-bold tracking-[0.28em] text-sky-800 dark:text-cyan-300">
+          {state.code ?? "—"}
+        </p>
+        <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-slate-600 dark:text-zinc-400">
+          Осы кодты қарсыласыңа жібер. Ол Аренадан «Кодпен қосылу» арқылы енгізсе, матч бірден басталады.
+        </p>
+        <p className="mt-6 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-zinc-400">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Қарсыласты күтіп тұрмыз
+        </p>
+      </div>
+    );
   }
 
   if (!state || phase === "connecting") {
     return (
       <div className="glass-card flex flex-col items-center gap-4 p-12 text-center">
         <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-cyan-300" />
-        <p className="text-base">Қарсылас іздеп жатырмыз…</p>
+        <p className="text-base">Матч жүктелуде…</p>
         <p className="text-sm text-slate-500 dark:text-zinc-500">{subjectName}</p>
       </div>
     );

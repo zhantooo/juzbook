@@ -40,8 +40,12 @@ for (const subject of subjects) {
 }
 console.log(`пән көшірілді: ${subjects.length}`);
 
-const already = await remote.arenaQuestionBank.count();
-console.log(`Turso-да бұрыннан: ${already} сұрақ`);
+// SQLite `createMany` ішінде `skipDuplicates`-ты қолдамайды, сондықтан
+// бұрын көшірілгенін өзіміз есте сақтап, қайталанбасын өзіміз сүземіз.
+const already = new Set(
+  (await remote.arenaQuestionBank.findMany({ select: { sourceId: true } })).map((row) => row.sourceId)
+);
+console.log(`Turso-да бұрыннан: ${already.size} сұрақ`);
 
 /**
  * Пән мен деңгей бойынша теңдей аламыз: матчқа 6 орташа, 2 жеңіл, 2 күрделі
@@ -62,8 +66,15 @@ for (const subject of subjects) {
     });
     for (let index = 0; index < rows.length; index += 100) {
       const chunk = rows.slice(index, index + 100);
-      await remote.arenaQuestionBank.createMany({ data: chunk, skipDuplicates: true });
-      copied += chunk.length;
+      const fresh = chunk.filter((row) => !already.has(row.sourceId));
+      if (!fresh.length) {
+        continue;
+      }
+      await remote.arenaQuestionBank.createMany({ data: fresh });
+      for (const row of fresh) {
+        already.add(row.sourceId);
+      }
+      copied += fresh.length;
       process.stdout.write(`\rкөшірілді: ${copied}`);
     }
   }

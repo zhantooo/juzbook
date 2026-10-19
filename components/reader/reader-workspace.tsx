@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, BookOpenText, CheckCircle2, ChevronDown, ChevronRight, FileText, Highlighter, Pause, Play, Search, Sparkles, Square, Trash2, Podcast, BrainCircuit, PencilLine, Save, X } from "lucide-react";
+import { ArrowRight, ArrowUp, BookOpenText, CheckCircle2, ChevronDown, ChevronRight, FileText, Gauge, Highlighter, Pause, Play, Search, Sparkles, Square, Trash2, Podcast, BrainCircuit, PencilLine, Save, X } from "lucide-react";
 import { RouteGuard } from "@/components/auth/route-guard";
 import { ChapterEditor } from "@/components/admin/chapter-editor";
 import { SourceAttributionBadge } from "@/components/books/source-attribution-badge";
@@ -65,6 +65,9 @@ const audioVoices = [
   { id: "ru-RU-SvetlanaNeural", label: "Орысша әйел дауысы", browserHints: ["svetlana", "female"], lang: "ru-RU" },
   { id: "en-US-JennyNeural", label: "Ағылшынша әйел дауысы", browserHints: ["jenny", "female"], lang: "en-US" }
 ] as const;
+
+/** Оқу жылдамдығының таңдауы — ойнатқыштың жасырын мәзірінің орнына */
+const audioRates = [0.75, 1, 1.25, 1.5, 1.75] as const;
 
 const bookThemes = {
   sky: {
@@ -189,9 +192,12 @@ export function ReaderWorkspace({
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isAudioPanelOpen, setIsAudioPanelOpen] = useState(false);
   const [audioError, setAudioError] = useState("");
-  // Жылдамдық пен дыбыс деңгейі ойнатқыштың өз басқаруында — бұл мәндер
-  // тек браузер дауысының бастапқы күйі үшін керек.
-  const [audioRate] = useState(1);
+  // Қате емес, тек хабарлама: серверлік дауыс қолжетімсіз болып, браузер
+  // дауысы оқып жатқан кезде қызыл «қате» көрсетудің қажеті жоқ.
+  const [audioNotice, setAudioNotice] = useState("");
+  // Оқу жылдамдығы — ойнатқыштың өз мәзірінде жасырын тұрады, сондықтан
+  // бетте көрінетін таңдау қалдырылады. Дыбыс деңгейі ойнатқыштың өзінде.
+  const [audioRate, setAudioRate] = useState(1);
   const [audioVolume] = useState(1);
   const [audioVoice, setAudioVoice] = useState<(typeof audioVoices)[number]["id"]>("kk-KZ-AigulNeural");
   const [flashcardBusyId, setFlashcardBusyId] = useState("");
@@ -881,6 +887,7 @@ export function ReaderWorkspace({
     // Алдын ала дайындалған аудио бар болса, ешқандай сұраныс жіберілмейді
     if (isAudioPrepared && audioUrl) {
       setAudioError("");
+      setAudioNotice("");
       setIsSpeechPaused(false);
       void audioRef.current?.play().catch(() => undefined);
       return;
@@ -889,6 +896,7 @@ export function ReaderWorkspace({
     setAudioMarks([]);
     setIsAudioLoading(true);
     setAudioError("");
+    setAudioNotice("");
     setIsSpeechPaused(false);
     try {
       const plainText = resolved.chapter.content
@@ -950,7 +958,9 @@ export function ReaderWorkspace({
         setUseBrowserVoice(true);
         setIsBrowserSpeaking(true);
         setIsSpeechPaused(false);
-        setAudioError(`${message} Браузер дауысы іске қосылды.`);
+        // Дыбыс шығып тұрғанда «аудио шықпады» деп қызыл қатемен шошытпаймыз
+        setAudioError("");
+        setAudioNotice("Серверлік дауыс қазір қолжетімсіз — мәтінді браузер дауысы оқып жатыр.");
         window.speechSynthesis.cancel();
 
         const speakParagraph = (index: number) => {
@@ -971,6 +981,12 @@ export function ReaderWorkspace({
             speakParagraph(index + 1);
             return;
           }
+
+          // Ерекшелеуді бірден қоямыз: кейбір браузерде `onstart` мүлде
+          // іске қосылмайды да, дыбыс шығып тұрса да мәтін боялмай қалады.
+          setSpokenParagraphId(queueItem.paragraphId);
+          setSpokenText(queueItem.text);
+          queueItem.element.scrollIntoView({ behavior: "smooth", block: "center" });
 
           const utterance = new SpeechSynthesisUtterance(queueItem.text);
           utterance.lang = browserVoice?.lang || activeAudioVoice.lang;
@@ -1804,6 +1820,11 @@ export function ReaderWorkspace({
                             {audioError}
                           </p>
                         ) : null}
+                        {audioNotice ? (
+                          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                            {audioNotice}
+                          </p>
+                        ) : null}
                         <div className="mt-4 space-y-3">
                           <label className="block rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
                             <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700 dark:text-zinc-200">
@@ -1816,6 +1837,20 @@ export function ReaderWorkspace({
                               value={audioVoice}
                               onChange={(next) => setAudioVoice(next as (typeof audioVoices)[number]["id"])}
                               options={audioVoices.map((voice) => ({ value: voice.id, label: voice.label }))}
+                            />
+                          </label>
+
+                          <label className="block rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
+                            <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700 dark:text-zinc-200">
+                              <Gauge className="h-3.5 w-3.5" />
+                              Оқу жылдамдығы
+                            </span>
+                            <SelectMenu
+                              size="sm"
+                              ariaLabel="Оқу жылдамдығы"
+                              value={String(audioRate)}
+                              onChange={(next) => setAudioRate(Number(next))}
+                              options={audioRates.map((rate) => ({ value: String(rate), label: `${rate}×` }))}
                             />
                           </label>
 
