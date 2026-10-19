@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { BookOpen, ChartColumnBig, Layers, LogOut, Menu, Settings, ShieldCheck, Sprout, SquareCheckBig, Users, X } from "lucide-react";
+import { BookOpen, ChartColumnBig, Layers, LogOut, Menu, Settings, ShieldCheck, Sprout, SquareCheckBig, Swords, Users, X } from "lucide-react";
 import { useAuth } from "@/components/state/auth-context";
 import { ReadingModeControl } from "@/components/reader/reading-mode";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -21,6 +21,7 @@ const TASK_REMINDER_KEY = "juzbook-task-reminders";
 
 const userLinks: HeaderLink[] = [
   { href: "/catalog", label: "Кітаптар" },
+  { href: "/arena", label: "Арена", icon: Swords },
   { href: "/profile", label: "Кабинетім" },
   { href: "/notes", label: "Конспект" },
   { href: "/flashcards", label: "Флешкарта", icon: Layers },

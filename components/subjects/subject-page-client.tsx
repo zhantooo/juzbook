@@ -16,6 +16,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Save,
+  Swords,
   Trash2,
   Undo2
 } from "lucide-react";
@@ -308,14 +309,24 @@ export function SubjectPageClient({ subjectId, initialSubject }: { subjectId: st
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowHighlights((value) => !value)}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-300"
-                >
-                  {showHighlights ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                  {showHighlights ? "Маркерлер панелін жасыру" : "Маркерлер панелін ашу"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Оқып болған соң бірден сол пәннен жекпе-жекке өтуге болады */}
+                  <Link
+                    href={`/arena/${subject.id}`}
+                    className="inline-flex items-center gap-2 rounded-full bg-sky-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-800 dark:bg-cyan-400 dark:text-zinc-950 dark:hover:bg-cyan-300"
+                  >
+                    <Swords className="h-4 w-4" />
+                    Жекпе-жек
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowHighlights((value) => !value)}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-300"
+                  >
+                    {showHighlights ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                    {showHighlights ? "Маркерлер панелін жасыру" : "Маркерлер панелін ашу"}
+                  </button>
+                </div>
               </div>
             </div>
 
