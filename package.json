@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:turbo": "next dev --turbopack",
     "build": "next build",
+    "vercel-build": "node scripts/deploy_db_push.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
