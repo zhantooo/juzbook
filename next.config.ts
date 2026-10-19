@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
   //   NEXT_DIST_DIR=.next-check npm run build
   // Сонда жұмыс істеп тұрған dev сервердің .next бумасы бүлінбейді.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // libsql пакетінің ішінде нативті модуль мен README сияқты файлдар бар:
+  // оларды бандлге тартса, құрастыру бұзылады. Сондықтан сервер жағында
+  // қалыпты модуль ретінде жүктелсін.
+  serverExternalPackages: ["@prisma/adapter-libsql", "@libsql/client", "libsql"],
   images: {
     remotePatterns: []
   }
