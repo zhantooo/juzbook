@@ -1,0 +1,161 @@
+// JUZBOOK Arena — жекпе-жек ойынының дерекқоры.
+//
+// Оқу бөлігі PostgreSQL-де жұмыс істейді, ал Arena өз алдына бөлек SQLite
+// файлында тұрады. Себебі: деректері шағын әрі өзіне тұйық, сондықтан
+// файлдық дерекқор жеткілікті, әрі Arena-дағы қате оқу бөлігіне тимейді.
+//
+// ТАСЫМАЛДАУ ЕРЕЖЕСІ: тек барлық дерекқорда бар түрлер қолданылады.
+// Әсіресе `String[]` сияқты массив бағаны жоқ — Prisma оны SQLite-та
+// қолдамайды. Жауап нұсқалары JSON жол ретінде сақталады да, шекарада
+// талданады. Сондықтан кейін PostgreSQL-ге көшіру оңай.
+
+generator arenaClient {
+  provider = "prisma-client-js"
+  output   = "../generated/arena-client"
+}
+
+datasource arena {
+  provider = "sqlite"
+  url      = env("ARENA_DATABASE_URL")
+}
+
+/// Ойыншы — оқу бөлігіндегі User-дің Arena ішіндегі көрінісі.
+/// `userId` сол дерекқордағы идентификатор, бірақ сыртқы кілт емес:
+/// екі дерекқор бір-біріне тәуелді болмауы керек.
+model ArenaPlayer {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String
+  createdAt   DateTime @default(now())
+
+  ratings ArenaRating[]
+  matches ArenaMatchPlayer[]
+  answers ArenaAnswer[]
+  queue   ArenaQueueEntry[]
+  wins    ArenaMatch[]       @relation("ArenaWinner")
+}
+
+/// Рейтинг әр пәнге бөлек: тарихтан шебер болып, химиядан жаңа бастаушы
+/// болуға болады. Сондықтан жалпы рейтинг деген жоқ.
+model ArenaRating {
+  id        String      @id @default(cuid())
+  playerId  String
+  player    ArenaPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  subjectId String
+  rating    Int         @default(1000)
+  played    Int         @default(0)
+  won       Int         @default(0)
+  lost      Int         @default(0)
+  drawn     Int         @default(0)
+  updatedAt DateTime    @updatedAt
+
+  @@unique([playerId, subjectId])
+  @@index([subjectId, rating])
+}
+
+/// Матч күйі: waiting (қарсылас күтуде) → active → finished | abandoned
+model ArenaMatch {
+  id           String    @id @default(cuid())
+  subjectId    String
+  status       String    @default("waiting")
+  /// Жеке матчқа шақыру коды. Кезекпен табысқан матчта бос.
+  code         String?   @unique
+  currentIndex Int       @default(0)
+  /// Ағымдағы сұрақ ашылған сәт — уақытты сервер өлшейді
+  questionOpenedAt DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  winnerId     String?
+  winner       ArenaPlayer? @relation("ArenaWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+
+  players   ArenaMatchPlayer[]
+  questions ArenaQuestion[]
+  answers   ArenaAnswer[]
+
+  @@index([status, subjectId])
+  @@index([createdAt])
+}
+
+model ArenaMatchPlayer {
+  id           String      @id @default(cuid())
+  matchId      String
+  match        ArenaMatch  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId     String
+  player       ArenaPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  score        Int         @default(0)
+  ratingBefore Int?
+  ratingAfter  Int?
+  /// Қатарынан жауапсыз қалған сұрақ саны — екеуге жетсе, матч тасталды
+  missedInRow  Int         @default(0)
+
+  @@unique([matchId, playerId])
+  @@index([playerId])
+}
+
+/// Матчтың он сұрағы құрылған сәтте көшіріліп алынады: қайта қосылған
+/// ойыншы дәл сол сұрақтарды көреді, ал нәтижені кейін тексеруге болады.
+model ArenaQuestion {
+  id          String     @id @default(cuid())
+  matchId     String
+  match       ArenaMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  position    Int
+  prompt      String
+  /// Жауап нұсқалары JSON жол ретінде (SQLite массив бағанын қолдамайды)
+  optionsJson String
+  answerIndex Int
+  explanation String     @default("")
+  difficulty  String     @default("medium")
+
+  answers ArenaAnswer[]
+
+  @@unique([matchId, position])
+}
+
+model ArenaAnswer {
+  id          String        @id @default(cuid())
+  matchId     String
+  match       ArenaMatch    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  questionId  String
+  question    ArenaQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      ArenaPlayer   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  position    Int
+  /// Үлгермеген жауап — бос
+  chosenIndex Int?
+  isCorrect   Boolean       @default(false)
+  elapsedMs   Int
+  points      Int           @default(0)
+  answeredAt  DateTime      @default(now())
+
+  @@unique([matchId, playerId, position])
+  @@index([playerId])
+}
+
+/// Пән бойынша қарсылас күту кезегі
+model ArenaQueueEntry {
+  id        String      @id @default(cuid())
+  playerId  String      @unique
+  player    ArenaPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  subjectId String
+  joinedAt  DateTime    @default(now())
+
+  @@index([subjectId, joinedAt])
+}
+
+/// Arena өз сұрақтарын оқу бөлігінің банкінен көшіріп алады: матч кезінде
+/// PostgreSQL-ге сұраныс жіберілмейді.
+model ArenaQuestionBank {
+  id          String   @id @default(cuid())
+  sourceId    String   @unique
+  subjectId   String
+  chapterId   String
+  prompt      String
+  optionsJson String
+  answerIndex Int
+  explanation String   @default("")
+  difficulty  String   @default("medium")
+  createdAt   DateTime @default(now())
+
+  @@index([subjectId, difficulty])
+}
