@@ -16,6 +16,30 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/adapter-libsql", "@libsql/client", "libsql"],
   images: {
     remotePatterns: []
+  },
+  /**
+   * Оқулық суреттері.
+   *
+   * Жергілікті жерде олар `public/books/` ішінде жатыр. Орналастырылған
+   * нұсқада ол қалта жоқ (авторлық құқық: репозиторийге салынбайды),
+   * сондықтан суреттер Vercel Blob қоймасынан беріледі.
+   *
+   * Массив қайтарған rewrite «afterFiles» болып есептеледі: жергілікті файл
+   * табылса, сол беріледі де, бұл ереже тіпті қолданылмайды. Яғни бір ереже
+   * екі ортада да дұрыс жұмыс істейді.
+   */
+  async rewrites() {
+    const blobHost = process.env.NEXT_PUBLIC_BOOKS_BLOB_HOST?.trim();
+    if (!blobHost) {
+      return [];
+    }
+
+    return [
+      {
+        source: "/books/:path*",
+        destination: `https://${blobHost}/books/:path*`
+      }
+    ];
   }
 };
 
