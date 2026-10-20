@@ -151,7 +151,7 @@ function HeaderNav({
   currentPanel: string | null;
 }) {
   return (
-    <nav className="hidden items-center gap-1 lg:flex xl:gap-2">
+    <nav className="hidden min-w-0 items-center gap-1 xl:flex xl:gap-2">
       {links.map((link) => {
         const active =
           link.href === "/admin?panel=stats"
@@ -198,6 +198,10 @@ export function SiteHeader() {
   const [taskReminder, setTaskReminder] = useState<(typeof todoTasks)[number] | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const isGarden = (pathname || "").startsWith("/garden");
+  // Оқу режимі мәтінді оқуға арналған, сондықтан батырма тек оқу бетінде
+  // көрінеді. Режимнің өзі бүкіл сайтқа әсер етеді де, таңдалған күйі
+  // сақталып қала береді.
+  const isReader = (pathname || "").startsWith("/books/");
   const reminderTimeoutRef = useRef<number | null>(null);
 
   const links = getRoleLinks(session?.role);
@@ -285,20 +289,20 @@ export function SiteHeader() {
           <HeaderNavWithPanel links={links} pathname={pathname} />
         </Suspense>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Телефонда жоғарғы мәзір сыймайды — гамбургер батырмасы арқылы ашылады */}
           <button
             type="button"
             onClick={() => setIsMobileNavOpen((current) => !current)}
             aria-label={isMobileNavOpen ? "Мәзірді жабу" : "Мәзірді ашу"}
             aria-expanded={isMobileNavOpen}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 lg:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 xl:hidden"
           >
             {isMobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
           {roleBadge ? (
-            <div className="hidden rounded-full border border-slate-200/80 bg-white px-4 py-2 text-xs font-semibold tracking-[0.12em] text-slate-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 lg:inline-flex">
+            <div className="hidden rounded-full border border-slate-200/80 bg-white px-4 py-2 text-xs font-semibold tracking-[0.12em] text-slate-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 xl:inline-flex">
               {roleBadge}
             </div>
           ) : null}
@@ -315,7 +319,7 @@ export function SiteHeader() {
             </Link>
           ) : null}
 
-          <ReadingModeControl />
+          {isReader ? <ReadingModeControl /> : null}
           {/* Ағаш бағының өз пиксель дизайны бар — түс режимі оған әсер етпейді,
               сондықтан ол бетте батырма көрсетілмейді. */}
           {isGarden ? null : <ThemeToggle />}
@@ -328,10 +332,12 @@ export function SiteHeader() {
                 logout();
                 router.push("/login");
               }}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-all duration-300 hover:border-rose-300 hover:text-rose-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-rose-500/50 dark:hover:text-rose-300"
+              aria-label="Шығу"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white px-3 text-sm font-medium text-slate-700 transition-all duration-300 hover:border-rose-300 hover:text-rose-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-rose-500/50 dark:hover:text-rose-300 sm:px-4"
             >
-              <LogOut className="h-4 w-4" />
-              Шығу
+              <LogOut className="h-4 w-4 shrink-0" />
+              {/* Тар экранда атауы жасырылады — батырманың өзі әрқашан көрінеді */}
+              <span className="hidden sm:inline">Шығу</span>
             </button>
           ) : null}
         </div>
@@ -339,7 +345,7 @@ export function SiteHeader() {
         {isMobileNavOpen ? (
           <div
             data-header-popup="true"
-            className="absolute left-0 right-0 top-[calc(100%+0.6rem)] z-50 rounded-3xl border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_24px_80px_-28px_rgba(14,165,233,0.35)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/95 lg:hidden"
+            className="absolute left-0 right-0 top-[calc(100%+0.6rem)] z-50 rounded-3xl border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_24px_80px_-28px_rgba(14,165,233,0.35)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/95 xl:hidden"
           >
             {links.map((link) => {
               const active = pathname === link.href || pathname.startsWith(`${link.href}/`);

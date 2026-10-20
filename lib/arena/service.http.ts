@@ -19,8 +19,16 @@ import type {
   SubjectRating
 } from "@/lib/arena/service";
 
-/** Күйді сұрау аралығы */
-const POLL_MS = 800;
+/**
+ * Күйді сұрау аралығы.
+ *
+ * Сұрақ ашық тұрғанда жиі сұраймыз: қарсыластың жауап бергені бірден
+ * көрінуі керек. Ал талдау кезеңінде де, қарсыласты күтіп тұрғанда да
+ * төрт секунд бойы ештеңе өзгермейді — сонда жиі сұраудың қажеті жоқ,
+ * ол тек серверді де, дерекқорды да бос жүктейді.
+ */
+const POLL_ACTIVE_MS = 800;
+const POLL_IDLE_MS = 2000;
 
 async function call<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
@@ -89,6 +97,7 @@ export const httpArenaService: ArenaService = {
     let lastQuestionPosition = -1;
     let lastResultPosition = -1;
     let ended = false;
+    let nextDelay = POLL_ACTIVE_MS;
 
     const emit = (event: MatchEvent) => {
       if (!stopped) {
@@ -104,6 +113,9 @@ export const httpArenaService: ArenaService = {
       try {
         const state = await httpArenaService.getMatch(matchId);
         emit({ type: "state", state });
+
+        // Талдау кезеңі мен бөлмеде күту — тыныш кезең
+        nextDelay = state.lastResult || state.status === "waiting" ? POLL_IDLE_MS : POLL_ACTIVE_MS;
 
         if (state.lastResult && state.lastResult.position !== lastResultPosition) {
           lastResultPosition = state.lastResult.position;
@@ -126,7 +138,7 @@ export const httpArenaService: ArenaService = {
       }
 
       if (!stopped && !ended) {
-        timer = window.setTimeout(() => void poll(), POLL_MS);
+        timer = window.setTimeout(() => void poll(), nextDelay);
       }
     };
 

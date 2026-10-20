@@ -61,15 +61,32 @@ export type ArenaViewer = { id: string; name: string };
 type MatchRow = Awaited<ReturnType<typeof loadMatch>>;
 type LoadedMatch = NonNullable<MatchRow>;
 
-/** Ойыншының Arena ішіндегі жазбасы — алғашқы кіргенде құрылады */
+/**
+ * Ойыншының Arena ішіндегі жазбасы — алғашқы кіргенде құрылады.
+ *
+ * Бұрын әр шақыруда `upsert` жасалатын. Матч экраны күйді секундына
+ * бірнеше рет сұрайтындықтан, ол әр сұранымда бір жазу операциясы болатын —
+ * желі арқылы жүретін дерекқорда (Turso) бұл ең қымбат бөлік еді. Енді
+ * алдымен оқимыз да, шынымен өзгеретін болса ғана жазамыз.
+ */
 export async function ensurePlayer(viewer: ArenaViewer) {
   const displayName = viewer.name.trim() || "Оқушы";
+  const existing = await arenaPrisma.arenaPlayer.findUnique({ where: { userId: viewer.id } });
 
-  return arenaPrisma.arenaPlayer.upsert({
-    where: { userId: viewer.id },
-    create: { userId: viewer.id, displayName },
-    update: { displayName }
-  });
+  if (existing) {
+    if (existing.displayName === displayName) {
+      return existing;
+    }
+    return arenaPrisma.arenaPlayer.update({
+      where: { id: existing.id },
+      data: { displayName }
+    });
+  }
+
+  // Екі сұраныс қатар келсе, бірегейлік шектеуі екіншісін тойтарады
+  return arenaPrisma.arenaPlayer
+    .create({ data: { userId: viewer.id, displayName } })
+    .catch(() => arenaPrisma.arenaPlayer.findUniqueOrThrow({ where: { userId: viewer.id } }));
 }
 
 export async function ensureBotPlayer() {

@@ -109,6 +109,15 @@ export async function synthesizeAudio(options: {
       });
       child.on("error", (error) => {
         clearTimeout(timer);
+        /**
+         * Орналастырылған ортада (Vercel) Python жоқ: аудио тек жергілікті
+         * машинада дайындалады да, дайын файлдар сонда сақталады. Бұл
+         * бұзылу емес, сондықтан хабарлама да нақты болуы керек.
+         */
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          reject(new Error("Серверлік дауыс бұл ортада қолжетімсіз: Python орнатылмаған."));
+          return;
+        }
         reject(error);
       });
       child.on("close", (code) => {

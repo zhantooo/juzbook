@@ -942,11 +942,17 @@ export function ReaderWorkspace({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Аудио жасау кезінде қате пайда болды.";
 
-      if (browserSpeechSupported) {
+      const browserVoice = browserSpeechSupported ? findBrowserVoice() : null;
+
+      /**
+       * Қазақша дауыс жоқ болса, браузер мәтінді әдепкі (көбіне ағылшын)
+       * дауыспен оқиды да, түсініксіз нәрсе шығады. Ондайда үнсіз қалған
+       * дұрыс: не болып жатқанын айтамыз да, ештеңе оқымаймыз.
+       */
+      if (browserSpeechSupported && browserVoice) {
         const paragraphElements = Array.from(
           contentRef.current?.querySelectorAll<HTMLElement>("[id^='p-']") ?? []
         ).filter((element) => element.textContent?.trim());
-        const browserVoice = findBrowserVoice();
         const speechQueue = paragraphElements.flatMap((element) =>
           splitTextForSpeech(element.textContent?.replace(/\s+/g, " ").trim() || "").map((text) => ({
             paragraphId: element.id,
@@ -1018,6 +1024,12 @@ export function ReaderWorkspace({
         };
 
         speakParagraph(0);
+      } else if (browserSpeechSupported) {
+        setAudioError("");
+        setAudioNotice(
+          `${message} Бұл құрылғыда қазақша дауыс орнатылмаған, сондықтан мәтін оқылмайды — ` +
+            "әйтпесе ағылшын дауысы түсініксіз нәрсе оқыр еді."
+        );
       } else {
         setAudioError(message);
       }
