@@ -22,24 +22,34 @@ const nextConfig: NextConfig = {
    *
    * Жергілікті жерде олар `public/books/` ішінде жатыр. Орналастырылған
    * нұсқада ол қалта жоқ (авторлық құқық: репозиторийге салынбайды),
-   * сондықтан суреттер Vercel Blob қоймасынан беріледі.
+   * сондықтан суреттер сыртқы файл қоймасынан беріледі.
    *
-   * Массив қайтарған rewrite «afterFiles» болып есептеледі: жергілікті файл
-   * табылса, сол беріледі де, бұл ереже тіпті қолданылмайды. Яғни бір ереже
-   * екі ортада да дұрыс жұмыс істейді.
+   * `fallback` деп жазылуы маңызды: оқу бетінің мекенжайы да `/books/...`
+   * болады (`/books/<кітап>/chapters/<тақырып>`). `afterFiles` ережесі
+   * динамикалық маршруттардан БҰРЫН тексеріледі де, оқу бетін де ұстап
+   * қалар еді. `fallback` бәрінен кейін тұрады: нақты бет табылса, сол
+   * ашылады, ал ешқандай маршрутқа сәйкес келмеген жол (яғни сурет файлы)
+   * ғана қоймаға барады.
+   *
+   * Жергілікті жерде `public/books/` файлдары бұдан да бұрын берілетіндіктен,
+   * ереже тіпті қолданылмайды.
    */
   async rewrites() {
     const blobHost = process.env.NEXT_PUBLIC_BOOKS_BLOB_HOST?.trim();
     if (!blobHost) {
-      return [];
+      return { beforeFiles: [], afterFiles: [], fallback: [] };
     }
 
-    return [
-      {
-        source: "/books/:path*",
-        destination: `https://${blobHost}/books/:path*`
-      }
-    ];
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: [
+        {
+          source: "/books/:path*",
+          destination: `https://${blobHost}/books/:path*`
+        }
+      ]
+    };
   }
 };
 
