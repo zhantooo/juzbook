@@ -19,7 +19,12 @@ type TopicRow = {
   updatedAt: Date;
 };
 
-type NavigationTopicRow = Omit<TopicRow, "content" | "updatedAt">;
+/**
+ * Навигация сұрауы тақырыптың қысқаша мазмұнын алмайды: ол жауаптың
+ * жартысына жуығын алып жатқан да, навигацияда көрсетілмейтін. Оқу беті
+ * тақырыпты өз сұранысымен алады, сондықтан мазмұн сонда келеді.
+ */
+type NavigationTopicRow = Omit<TopicRow, "content" | "updatedAt" | "excerpt">;
 
 type BookQueryRow = {
   id: string;
@@ -197,7 +202,10 @@ function mapNavigationBook(book: NavigationBookQueryRow, includeHidden = false):
           .map((topic) => ({
           id: topic.id,
           title: topic.title,
-          excerpt: topic.excerpt,
+          // Навигацияда қысқаша мазмұн көрсетілмейді, ал ол жауаптың
+          // жартысына жуығын алып жатқан: 2 282 тақырыпта ~900 КБ.
+          // Оқу беті тақырыпты өз сұранысымен алады, сондықтан бос.
+          excerpt: "",
           content: "",
           pdfPage: topic.pdfPage,
           order: topic.order,
@@ -226,7 +234,8 @@ function mapNavigationBook(book: NavigationBookQueryRow, includeHidden = false):
             topics: directTopics.map((topic) => ({
               id: topic.id,
               title: topic.title,
-              excerpt: topic.excerpt,
+              // Навигацияда мазмұн жоқ — жоғарыдағы себеп
+              excerpt: "",
               content: "",
               pdfPage: topic.pdfPage,
               order: topic.order,
@@ -389,7 +398,6 @@ async function getCatalogNavigationFromDatabaseUncached(includeHidden = false): 
             select: {
               id: true,
               title: true,
-              excerpt: true,
               order: true,
               pdfPage: true,
               isHidden: true,
@@ -417,8 +425,7 @@ async function getCatalogNavigationFromDatabaseUncached(includeHidden = false): 
                     select: {
                       id: true,
                       title: true,
-                      excerpt: true,
-                      order: true,
+                              order: true,
                       pdfPage: true,
                       isHidden: true,
                       bookId: true,

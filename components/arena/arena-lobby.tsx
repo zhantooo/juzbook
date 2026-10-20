@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Bot, Check, Copy, Hash, Loader2, Shuffle, UserPlus, Users } from "lucide-react";
 import { RouteGuard } from "@/components/auth/route-guard";
 import { SiteHeader } from "@/components/site/site-header";
+import { SubjectLeaderboard } from "@/components/arena/arena-stats";
 import { httpArenaService as service } from "@/lib/arena/service.http";
 
 /**
@@ -351,6 +352,10 @@ export function ArenaLobbyContent({ subjectId, subjectName }: { subjectId: strin
                 </button>
               </div>
             </form>
+
+            <div className="pt-2">
+              <SubjectLeaderboard subjectId={subjectId} subjectName={subjectName} />
+            </div>
 
             <ul className="space-y-2 pt-2 text-sm leading-6 text-slate-500 dark:text-zinc-400">
               <li className="flex items-start gap-2">

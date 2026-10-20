@@ -7,6 +7,7 @@ import { Clock3, Hash, Swords, Trophy, Users } from "lucide-react";
 import { RouteGuard } from "@/components/auth/route-guard";
 import { SiteHeader } from "@/components/site/site-header";
 import { formatCount } from "@/lib/arena/format";
+import { MatchHistory, MyRatings } from "@/components/arena/arena-stats";
 import { httpArenaService as service } from "@/lib/arena/service.http";
 import type { ArenaSubject } from "@/lib/arena/subjects";
 
@@ -142,6 +143,11 @@ export function ArenaHomeContent({ subjects }: { subjects: ArenaSubject[] }) {
               </ul>
             </section>
           ) : null}
+
+          <section className="mt-10 grid gap-4 lg:grid-cols-2">
+            <MyRatings />
+            <MatchHistory />
+          </section>
 
           <section className="mt-10 max-w-xl">
             <h2 className="text-xl font-semibold">Досыңмен ойна</h2>

@@ -84,6 +84,8 @@ Operational notes:
 | [`_docs/team/qa-engineer.md`](_docs/team/qa-engineer.md) | You are verifying an issue |
 | [`docs/dizayn-juyesi.md`](docs/dizayn-juyesi.md) | You are changing anything visual |
 | [`docs/kitap-talaptary.md`](docs/kitap-talaptary.md) | You are touching the textbook import pipeline |
+| [`openapi.yaml`](openapi.yaml) | You are changing any Arena API route — the contract test fails if the spec drifts |
+| [`_docs/arena/spec.md`](_docs/arena/spec.md) | You are working on Arena |
 
 ### Known traps — read before touching the catalogue
 
@@ -95,3 +97,52 @@ Operational notes:
   `catalog-navigation`). Call `revalidateCatalogViews(...)` after writes.
 - **Real-ESRGAN `realesrgan-x4plus` only works with `-s 4`.** Any other scale
   silently produces corrupted tiles and still exits 0.
+
+---
+
+## Arena
+
+Arena is the 1v1 duel: two students get the same ten questions from one
+subject, and whoever is accurate and fast wins. It is **self-contained** —
+its own database, its own schema, its own client. A failure in Arena must
+never reach the reader.
+
+| Piece | Where |
+|---|---|
+| Server logic (the only place decisions are made) | [`lib/arena/engine.ts`](lib/arena/engine.ts) |
+| Pure scoring and Elo | [`lib/arena/scoring.ts`](lib/arena/scoring.ts), [`lib/arena/rating.ts`](lib/arena/rating.ts) |
+| Service contract, and its two implementations | [`lib/arena/service.ts`](lib/arena/service.ts), `service.mock.ts`, `service.http.ts` |
+| Request schemas | [`lib/arena/schemas.ts`](lib/arena/schemas.ts) |
+| HTTP routes | `app/api/arena/**` |
+| Database | [`prisma/arena.prisma`](prisma/arena.prisma) — SQLite locally, Turso when deployed |
+
+### Rules for Arena
+
+1. **The client decides nothing.** It never measures time, never scores, never
+   sees the correct answer before a question closes. Everything is computed in
+   `engine.ts` from the database.
+2. **A match is not a live process.** Time moves forward on every read: `tick()`
+   closes an expired question and opens the next one. There is no background
+   timer, so it works the same on a serverless host.
+3. **No column type that only one engine supports.** Answer options are stored
+   as a JSON string because SQLite has no array column. Keep it portable.
+4. **`openapi.yaml` is enforced by a test.** Add a route without documenting it
+   and `lib/arena/contract.test.ts` fails. That is intentional.
+5. **Tests never touch the deployed database.** `vitest.setup.ts` deletes
+   `TURSO_DATABASE_URL` and points Prisma at `prisma/arena-test.db`. Do not
+   weaken that.
+
+### Known traps — Arena
+
+- **`rewrites()` returning an array is `afterFiles`,** which is checked *before*
+  dynamic routes. The reader lives at `/books/<book>/chapters/<topic>`, so a
+  `/books/:path*` rule put there swallows the reader. Image rewrites belong in
+  `fallback`.
+- **A full match is slow against a local SQLite file** (~40 s), because every
+  write is an fsync. That is a test-environment artefact, not the engine.
+  Expensive assertions are grouped into one test on purpose.
+- **The mock match clock only starts on `subscribe()`.** Calling `getMatch`
+  alone will never advance it, which looks like a frozen match in tests.
+- **Bot answers are derived from `matchId` and the question number,** so they
+  are stable across re-reads. Do not make them random at read time, or the
+  state will change while a player looks at it.

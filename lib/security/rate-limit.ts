@@ -116,9 +116,20 @@ export function getRequestIpAddress(request: Request) {
   return request.headers.get("x-real-ip") || "0.0.0.0";
 }
 
-export async function enforceAiRateLimit(identity: string, limit = 3): Promise<LimitResult> {
+/**
+ * Минуттық шек.
+ *
+ * `scope` — шектің қай әрекетке қатысы бар екені (`ai`, `arena-answer`, …).
+ * Әр әрекеттің өз есебі болуы керек: тест құрастыру мен Аренадағы жауап
+ * мүлде басқа жиілікте жүреді.
+ */
+export async function enforceRateLimit(
+  scope: string,
+  identity: string,
+  limit: number
+): Promise<LimitResult> {
   const minuteBucket = Math.floor(Date.now() / (RATE_WINDOW_SECONDS * 1000));
-  const key = `juzbook:ai:${identity}:${minuteBucket}`;
+  const key = `juzbook:${scope}:${identity}:${minuteBucket}`;
 
   try {
     const redisCount = await incrementRedisKey(key);
@@ -145,4 +156,9 @@ export async function enforceAiRateLimit(identity: string, limit = 3): Promise<L
     limit,
     retryAfterSeconds: Math.max(1, Math.ceil((memoryBucket.resetAt - Date.now()) / 1000))
   };
+}
+
+/** ИИ сұраныстарының шегі. Бұрынғы атау сақталды — екі маршрут қолданады. */
+export async function enforceAiRateLimit(identity: string, limit = 3): Promise<LimitResult> {
+  return enforceRateLimit("ai", identity, limit);
 }

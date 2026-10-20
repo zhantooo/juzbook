@@ -39,7 +39,10 @@ export function ArenaMatch({
   const [selected, setSelected] = useState<number | null>(null);
   const [remaining, setRemaining] = useState(QUESTION_MS);
   const [error, setError] = useState("");
+  // Байланыс үзілсе, экран қатып қалмай, оқушыға не болып жатқанын айтады
+  const [isStale, setIsStale] = useState(false);
   const matchRef = useRef<string | null>(matchId);
+  const lastSyncRef = useRef(Date.now());
 
   // Матч күйіне жазылу. Қарсылас күтіліп тұрса, күй «waiting» болып келеді.
   useEffect(() => {
@@ -47,6 +50,8 @@ export function ArenaMatch({
 
     const unsubscribe = service.subscribe(matchId, (event) => {
       if (event.type === "state") {
+        lastSyncRef.current = Date.now();
+        setIsStale(false);
         setState(event.state);
         // Жеке бөлмеде қарсылас әлі қосылмаған
         setPhase((current) =>
@@ -75,6 +80,18 @@ export function ArenaMatch({
 
     return unsubscribe;
   }, [matchId, service]);
+
+  /**
+   * Қызмет желі қатесін үнсіз қайталайды, сондықтан экран ескі күйді
+   * көрсетіп тұра беруі мүмкін. Соңғы жаңартудан бері көп уақыт өтсе,
+   * оқушыға айтамыз — әйтпесе ол ойын бұзылды деп ойлайды.
+   */
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setIsStale(Date.now() - lastSyncRef.current > 5000);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Қалған уақыт — тек көрсету үшін, шешімді сервер қабылдайды
   useEffect(() => {
@@ -119,7 +136,7 @@ export function ArenaMatch({
 
   if (error) {
     return (
-      <div className="glass-card p-8 text-center">
+      <div className="glass-card p-8 text-center" role="alert">
         <p className="text-base">{error}</p>
         <Link href="/arena" className="mt-5 inline-block rounded-full bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white dark:bg-cyan-400 dark:text-zinc-950">
           Аренаға оралу
@@ -180,7 +197,7 @@ export function ArenaMatch({
           </div>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-5" aria-live="polite" aria-atomic="true">
           <ScoreBadge label="Сен" score={state.you.score} answered={state.you.answered} highlight />
           <ScoreBadge
             label={state.opponent?.displayName ?? "Қарсылас"}
@@ -189,6 +206,16 @@ export function ArenaMatch({
           />
         </div>
       </div>
+
+      {isStale ? (
+        <p
+          className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+          role="status"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Байланыс үзілді — қайта қосылудамыз. Матч сақталып тұр, жауабың жоғалмайды.
+        </p>
+      ) : null}
 
       {question ? (
         <div className="glass-card p-6">
@@ -211,7 +238,7 @@ export function ArenaMatch({
 
           <h2 className="mt-5 text-xl font-semibold leading-8">{question.prompt}</h2>
 
-          <div className="mt-5 grid gap-3">
+          <div className="mt-5 grid gap-3" role="group" aria-label="Жауап нұсқалары">
             {question.options.map((option, index) => {
               const isChosen = selected === index;
               const isCorrect = result?.correctIndex === index;
@@ -233,7 +260,9 @@ export function ArenaMatch({
                   type="button"
                   disabled={phase !== "playing"}
                   onClick={() => answer(index)}
-                  className={`flex items-center gap-3 rounded-2xl border px-4 py-4 text-left text-base leading-7 transition disabled:cursor-default ${tone}`}
+                  aria-pressed={isChosen}
+                  aria-keyshortcuts={String(index + 1)}
+                  className={`flex items-center gap-3 rounded-2xl border px-4 py-4 text-left text-base leading-7 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-default dark:focus-visible:ring-cyan-400 dark:focus-visible:ring-offset-zinc-950 ${tone}`}
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold dark:border-zinc-700">
                     {LETTERS[index]}

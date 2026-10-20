@@ -42,6 +42,20 @@ const BOT_NAME = "Жаттығу боты";
 /** Кезекте тірі қарсыласты осы уақыт күтеміз, сосын бот қосылады */
 export const QUEUE_BOT_AFTER_MS = 15_000;
 
+/**
+ * Матчтың өмір жолын журналға жазады.
+ *
+ * Бір жолда, тұрақты префикспен: Vercel журналынан `[arena]` деп іздеп,
+ * бір матчтың бүкіл тарихын `matchId` бойынша жинап алуға болады. Жеке
+ * деректер жазылмайды — тек идентификаторлар мен сандар.
+ */
+function logMatch(event: string, data: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "test") {
+    return;
+  }
+  console.info(`[arena] ${event}`, JSON.stringify(data));
+}
+
 export type ArenaViewer = { id: string; name: string };
 
 type MatchRow = Awaited<ReturnType<typeof loadMatch>>;
@@ -148,7 +162,7 @@ async function createMatch(options: {
 
   const now = new Date();
 
-  return arenaPrisma.arenaMatch.create({
+  const created = await arenaPrisma.arenaMatch.create({
     data: {
       subjectId: options.subjectId,
       status: options.start ? "active" : "waiting",
@@ -171,6 +185,16 @@ async function createMatch(options: {
       }
     }
   });
+
+  logMatch("match-created", {
+    matchId: created.id,
+    subjectId: options.subjectId,
+    players: options.playerIds.length,
+    private: Boolean(options.code),
+    started: options.start
+  });
+
+  return created;
 }
 
 async function loadMatch(matchId: string) {
@@ -302,6 +326,14 @@ async function finishMatch(match: LoadedMatch, status: "finished" | "abandoned")
     where: { id: match.id },
     data: { status, finishedAt: new Date(), winnerId }
   });
+
+  logMatch("match-ended", {
+    matchId: match.id,
+    subjectId: match.subjectId,
+    status,
+    winnerId,
+    scores: match.players.map((side) => scoreOf(match, side.playerId))
+  });
 }
 
 /**
@@ -417,6 +449,13 @@ export async function tick(matchId: string): Promise<LoadedMatch> {
       return (await loadMatch(matchId)) ?? match;
     }
 
+    logMatch("question-closed", {
+      matchId,
+      position,
+      reason: timeIsUp ? "timeout" : "all-answered",
+      answers: match.answers.filter((answer) => answer.position === position).length
+    });
+
     if (position + 1 >= TOTAL_QUESTIONS) {
       await finishMatch(match, "finished");
       return (await loadMatch(matchId)) ?? match;
@@ -444,6 +483,7 @@ async function startMatch(matchId: string) {
     where: { id: matchId },
     data: { status: "active", startedAt: now, questionOpenedAt: now }
   });
+  logMatch("match-started", { matchId });
 }
 
 /**
