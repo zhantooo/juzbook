@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { joinQueue, leaveQueue, pollQueue } from "@/lib/arena/engine";
+import { subjectRequestSchema } from "@/lib/arena/schemas";
 import { arenaError, resolveArenaViewer } from "@/lib/arena/viewer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const bodySchema = z.object({ subjectId: z.string().trim().min(1) });
 
 /** POST — кездейсоқ қарсылас кезегіне тұру */
 export async function POST(request: Request) {
@@ -15,7 +13,7 @@ export async function POST(request: Request) {
     return auth.response;
   }
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+  const parsed = subjectRequestSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: "Пән көрсетілмеген." }, { status: 400 });
   }

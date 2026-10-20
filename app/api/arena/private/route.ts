@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { createPrivateMatch, joinByCode } from "@/lib/arena/engine";
+import { codeRequestSchema, subjectRequestSchema } from "@/lib/arena/schemas";
 import { arenaError, resolveArenaViewer } from "@/lib/arena/viewer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const createSchema = z.object({ subjectId: z.string().trim().min(1) });
-const joinSchema = z.object({ code: z.string().trim().min(4).max(8) });
 
 /**
  * POST — жеке матч құру немесе кодпен қосылу.
@@ -23,7 +20,7 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as unknown;
 
-  const join = joinSchema.safeParse(body);
+  const join = codeRequestSchema.safeParse(body);
   if (join.success) {
     try {
       return NextResponse.json(await joinByCode(auth.viewer, join.data.code));
@@ -32,7 +29,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const create = createSchema.safeParse(body);
+  const create = subjectRequestSchema.safeParse(body);
   if (!create.success) {
     return NextResponse.json({ error: "Пән немесе код көрсетілмеген." }, { status: 400 });
   }

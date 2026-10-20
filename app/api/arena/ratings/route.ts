@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getHistory, getLeaderboard, getRatings } from "@/lib/arena/engine";
+import { ratingsQuerySchema } from "@/lib/arena/schemas";
 import { arenaError, resolveArenaViewer } from "@/lib/arena/viewer";
 
 export const runtime = "nodejs";
@@ -19,9 +20,17 @@ export async function GET(request: Request) {
   }
 
   const params = new URL(request.url).searchParams;
-  const view = params.get("view")?.trim() || "ratings";
-  const subjectId = params.get("subjectId")?.trim() || "";
-  const limit = Number(params.get("limit") || "0") || undefined;
+  const parsed = ratingsQuerySchema.safeParse({
+    view: params.get("view")?.trim() || undefined,
+    subjectId: params.get("subjectId")?.trim() || undefined,
+    limit: params.get("limit")?.trim() || undefined
+  });
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Сұрау параметрлері жарамсыз." }, { status: 400 });
+  }
+
+  const { view, subjectId, limit } = parsed.data;
 
   try {
     if (view === "leaderboard") {
@@ -32,7 +41,7 @@ export async function GET(request: Request) {
     }
 
     if (view === "history") {
-      return NextResponse.json({ rows: await getHistory(auth.viewer, subjectId || undefined, limit) });
+      return NextResponse.json({ rows: await getHistory(auth.viewer, subjectId, limit) });
     }
 
     return NextResponse.json({ rows: await getRatings(auth.viewer) });

@@ -12,6 +12,7 @@
  */
 import { arenaPrisma } from "@/lib/arena/db";
 import { QUESTION_MS, decideWinner, scoreAnswer } from "@/lib/arena/scoring";
+import { START_RATING, nextRatings } from "@/lib/arena/rating";
 import type {
   HistoryRow,
   LeaderboardRow,
@@ -35,9 +36,6 @@ const MIX: Array<{ difficulty: string; count: number }> = [
   { difficulty: "easy", count: 2 },
   { difficulty: "hard", count: 2 }
 ];
-/** Рейтинг коэффициенті (Эло) */
-const K_FACTOR = 24;
-
 /** Жаттығу боты — кезекте тірі қарсылас болмаған кезде ғана қосылады */
 export const BOT_USER_ID = "arena-bot";
 const BOT_NAME = "Жаттығу боты";
@@ -223,11 +221,6 @@ export function parseOptions(optionsJson: string): string[] {
   }
 }
 
-/** Эло: күтілген нәтиже */
-function expectedScore(mine: number, theirs: number) {
-  return 1 / (1 + 10 ** ((theirs - mine) / 400));
-}
-
 function scoreOf(match: LoadedMatch, playerId: string) {
   return match.answers
     .filter((answer) => answer.playerId === playerId)
@@ -266,13 +259,13 @@ async function finishMatch(match: LoadedMatch, status: "finished" | "abandoned")
   }
 
   if (first && second) {
-    const firstBefore = ratings.get(first.playerId)?.before ?? 1000;
-    const secondBefore = ratings.get(second.playerId)?.before ?? 1000;
-    const firstActual = winnerId === null ? 0.5 : winnerId === first.playerId ? 1 : 0;
-    const firstDelta = Math.round(K_FACTOR * (firstActual - expectedScore(firstBefore, secondBefore)));
+    const firstBefore = ratings.get(first.playerId)?.before ?? START_RATING;
+    const secondBefore = ratings.get(second.playerId)?.before ?? START_RATING;
+    const result = winnerId === null ? "drawn" : winnerId === first.playerId ? "won" : "lost";
+    const next = nextRatings({ first: firstBefore, second: secondBefore, result });
 
-    ratings.set(first.playerId, { before: firstBefore, after: firstBefore + firstDelta });
-    ratings.set(second.playerId, { before: secondBefore, after: secondBefore - firstDelta });
+    ratings.set(first.playerId, { before: firstBefore, after: next.first });
+    ratings.set(second.playerId, { before: secondBefore, after: next.second });
   }
 
   for (const side of match.players) {
@@ -790,8 +783,8 @@ export async function getOutcome(viewer: ArenaViewer, matchId: string): Promise<
     playerId: side.playerId,
     displayName: side.player.displayName,
     score: side.score || scoreOf(match, side.playerId),
-    ratingBefore: side.ratingBefore ?? 1000,
-    ratingAfter: side.ratingAfter ?? side.ratingBefore ?? 1000
+    ratingBefore: side.ratingBefore ?? START_RATING,
+    ratingAfter: side.ratingAfter ?? side.ratingBefore ?? START_RATING
   });
 
   return {

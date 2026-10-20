@@ -1,0 +1,725 @@
+openapi: 3.1.0
+
+info:
+  title: JUZBOOK Arena API
+  version: 1.0.0
+  summary: Бір пән бойынша екі оқушының тікелей жекпе-жегі
+  description: |
+    Arena — JUZBOOK ішіндегі жекпе-жек ойыны. Екі ойыншыға бір пәннен бірдей
+    он сұрақ беріледі; кім дәл әрі жылдам жауап берсе, сол жеңеді.
+
+    **Бүкіл шешім серверде қабылданады.** Клиент уақытты өлшемейді, ұпай
+    санамайды, сұрақтың дұрыс жауабын да көрмейді. Ол тек күйді сұрап,
+    жауабын жібереді. Сондықтан уақытты алдау мүмкін емес.
+
+    **Матч «тірі процесс» емес.** Күй әр оқылған сайын алға жылжиды: уақыты
+    өткен сұрақ жабылып, келесісі ашылады. Фондық таймер жоқ, сондықтан
+    serverless ортада да (Vercel) бірдей жұмыс істейді.
+
+    **Оқиғалар ағыны сауалнама (polling) арқылы беріледі.** Бөлек SSE
+    маршруты жоқ: клиент `GET /api/arena/match/{matchId}` арқылы күйді жиі
+    сұрап, өзгерісті `MatchEvent` оқиғасына айналдырады (`MatchEvent`
+    сұлбасы төменде — ол клиенттің ішкі келісімі). Себебі: serverless
+    функцияда ұзақ ашық байланыс ұстау сенімсіз әрі қымбат, ал он сұрақтық
+    матчқа секундына бір сұраныс жеткілікті.
+
+servers:
+  - url: https://juzbook.vercel.app
+    description: Орналастырылған нұсқа
+  - url: http://localhost:3000
+    description: Жергілікті әзірлеу
+
+tags:
+  - name: matchmaking
+    description: Қарсылас табу — кезек және жеке бөлме
+  - name: match
+    description: Матчтың өзі — күй, жауап, қорытынды
+  - name: rating
+    description: Рейтинг, лидерлер тізімі, матч тарихы
+
+security:
+  - sessionCookie: []
+
+paths:
+  /api/arena/queue:
+    post:
+      tags: [matchmaking]
+      operationId: joinQueue
+      summary: Кездейсоқ қарсылас кезегіне тұру
+      description: |
+        Сол пәнде күтіп тұрған басқа ойыншы болса, екеуі бірден матчқа
+        түседі. Болмаса, ойыншы кезекке жазылады да, `GET` арқылы күтеді.
+
+        Ойыншының аяқталмаған матчы бар болса, жаңа матч құрылмайды — сол
+        матчтың идентификаторы қайтады.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubjectRequest"
+      responses:
+        "200":
+          description: Кезекке тұрды немесе бірден қарсылас табылды
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    get:
+      tags: [matchmaking]
+      operationId: pollQueue
+      summary: Кезектің күйін сұрау
+      description: |
+        Клиент кезекте тұрғанда осыны қайталап сұрайды. Тірі қарсылас
+        табылмаса, `QUEUE_BOT_AFTER_MS` (15 секунд) өткен соң жаттығу боты
+        қосылады да, матч басталады. Рейтинг ботпен ойнағанда да есептеледі.
+      parameters:
+        - name: subjectId
+          in: query
+          required: true
+          schema:
+            type: string
+          example: biology
+      responses:
+        "200":
+          description: Кезектің ағымдағы күйі
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags: [matchmaking]
+      operationId: leaveQueue
+      summary: Кезектен шығу
+      responses:
+        "200":
+          description: Шықты. Кезекте болмаса да сәтті деп саналады.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                required: [ok]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/arena/private:
+    post:
+      tags: [matchmaking]
+      operationId: privateMatch
+      summary: Жеке бөлме құру немесе кодпен қосылу
+      description: |
+        Бір маршрутта екі әрекет — клиент үшін бұл бір «досыңмен ойна»
+        қадамы:
+
+        - `subjectId` берілсе, бөлме құрылып, бес таңбалы код қайтады.
+          Бөлме `waiting` күйінде қарсыласты күтеді.
+        - `code` берілсе, сол бөлмеге қосылады да, матч бірден басталады.
+
+        Кодта ұқсас таңбалар жоқ (0/O, 1/I алынбайды) — ол ауызша айтуға
+        арналған. Код регистрге тәуелсіз.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/SubjectRequest"
+                - $ref: "#/components/schemas/CodeRequest"
+      responses:
+        "200":
+          description: Бөлме құрылды немесе қосылды
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PrivateMatchCreated"
+                  - $ref: "#/components/schemas/MatchRef"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: |
+            Код табылмады, немесе матч басталып кеткен (бөлмеде екі ойыншы
+            бар), немесе бұл пәнде матчқа жететін сұрақ жоқ.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/arena/match/{matchId}:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    get:
+      tags: [match]
+      operationId: getMatch
+      summary: Матчтың ағымдағы күйі
+      description: |
+        Клиент осыны жиі сұрайды (≈800 мс сайын). Әр сұраныста матчтың
+        уақыты алға жылжиды: уақыты өткен сұрақ жабылады, үлгермегендерге
+        бос жауап жазылады, келесі сұрақ ашылады.
+
+        **Талдау кезеңі.** Сұрақ жабылған соң `REVEAL_MS` (4 секунд) бойы
+        экранда сол сұрақ тұрады да, `lastResult` толтырылады. Сол кезде
+        `question.opensAt` өтіп кеткен уақытты көрсетеді — таймер нөлде
+        тұрады. Талдау біткен соң `question` келесі сұраққа ауысады, ал
+        `lastResult` қайта `null` болады.
+
+        Дұрыс жауап ешқашан ашық сұрақпен бірге берілмейді: ол тек
+        `lastResult` ішінде, сұрақ жабылған соң ғана көрінеді.
+      responses:
+        "200":
+          description: Матч күйі
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Матч табылмады немесе ойыншыға тиесілі емес
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/arena/match/{matchId}/answer:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    post:
+      tags: [match]
+      operationId: submitAnswer
+      summary: Жауап жіберу
+      description: |
+        Уақытты сервер өлшейді: `elapsedMs` сұрақ ашылған сәттен бастап
+        есептеледі, клиенттің айтқанына сенім жоқ.
+
+        Үнсіз өткізілетін жағдайлар (бәрібір `200` қайтады, себебі бұлар
+        қалыпты жарыс жағдайлары): кешігіп келген жауап, сұрақ нөмірі
+        ағымдағыдан басқа болса, уақыт бітіп кетсе, немесе осы сұраққа
+        жауап бұрын жазылған болса.
+
+        Екі ойыншы да жауап бергенде сұрақ уақытынан бұрын жабылады.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnswerRequest"
+      responses:
+        "200":
+          description: Жауап қабылданды (немесе үнсіз өткізілді)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                required: [ok]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Сұраныс шегінен асты
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Қанша секундтан соң қайталауға болады
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/arena/match/{matchId}/outcome:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    get:
+      tags: [match]
+      operationId: getOutcome
+      summary: Матч біткендегі қорытынды
+      description: |
+        Он сұрақтың толық талдауы, екі жақтың ұпайы және рейтингтің
+        өзгерісі. Матч әлі бітпеген болса `409` қайтады.
+      responses:
+        "200":
+          description: Қорытынды
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchOutcome"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Матч әлі аяқталмаған
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/arena/ratings:
+    get:
+      tags: [rating]
+      operationId: getRatings
+      summary: Рейтинг, лидерлер тізімі немесе матч тарихы
+      description: |
+        Рейтинг әр пәнде бөлек есептеледі: тарихтан шебер болып, химиядан
+        жаңа бастаушы болуға болады. Жалпы рейтинг деген жоқ.
+      parameters:
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [ratings, leaderboard, history]
+            default: ratings
+        - name: subjectId
+          in: query
+          description: |
+            `view=leaderboard` үшін міндетті. `view=history` үшін
+            міндетті емес — берілмесе, барлық пәннің матчы қайтады.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Сұралған тізім
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rows:
+                    oneOf:
+                      - type: array
+                        items:
+                          $ref: "#/components/schemas/SubjectRating"
+                      - type: array
+                        items:
+                          $ref: "#/components/schemas/LeaderboardRow"
+                      - type: array
+                        items:
+                          $ref: "#/components/schemas/HistoryRow"
+                required: [rows]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: juzbook_session
+      description: |
+        Arena өз алдына тіркелуді талап етпейді: оқу бөлігінің сессиясы
+        қолданылады. Қонақ жіберілмейді — бүкіл маршрут кіруді талап етеді.
+
+  parameters:
+    MatchId:
+      name: matchId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Матчтың идентификаторы (cuid)
+
+  responses:
+    BadRequest:
+      description: Сұраныс деректері жарамсыз
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Кіру қажет
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Қазақша хабарлама — тікелей пайдаланушыға көрсетуге жарайды
+      required: [error]
+      examples:
+        - error: Бұл код бойынша матч табылмады.
+
+    SubjectRequest:
+      type: object
+      properties:
+        subjectId:
+          type: string
+          minLength: 1
+      required: [subjectId]
+
+    CodeRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 4
+          maxLength: 8
+      required: [code]
+
+    MatchRef:
+      type: object
+      properties:
+        matchId:
+          type: string
+      required: [matchId]
+
+    PrivateMatchCreated:
+      allOf:
+        - $ref: "#/components/schemas/MatchRef"
+        - type: object
+          properties:
+            code:
+              type: string
+              pattern: "^[A-HJ-NP-Z2-9]{5}$"
+              description: Ұқсас таңбасыз бес таңбалы код
+          required: [code]
+
+    QueueResult:
+      oneOf:
+        - type: object
+          properties:
+            status:
+              type: string
+              const: queued
+          required: [status]
+        - type: object
+          properties:
+            status:
+              type: string
+              const: matched
+            matchId:
+              type: string
+          required: [status, matchId]
+      discriminator:
+        propertyName: status
+
+    MatchStatus:
+      type: string
+      enum: [waiting, active, finished, abandoned]
+      description: |
+        `waiting` — жеке бөлме қарсыласты күтуде.
+        `active` — матч жүріп жатыр.
+        `finished` — он сұрақ аяқталды.
+        `abandoned` — ойыншы қатарынан үш сұраққа жауап бермеді.
+
+    MatchSide:
+      type: object
+      properties:
+        playerId:
+          type: string
+        displayName:
+          type: string
+        score:
+          type: integer
+          minimum: 0
+        answered:
+          type: boolean
+          description: Ағымдағы сұраққа жауап берді ме. Қайсысын таңдағаны көрсетілмейді.
+      required: [playerId, displayName, score, answered]
+
+    PublicQuestion:
+      type: object
+      description: Ойыншыға берілетін сұрақ. Дұрыс жауабы жоқ.
+      properties:
+        position:
+          type: integer
+          minimum: 0
+          maximum: 9
+        prompt:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+          minItems: 2
+          maxItems: 4
+        opensAt:
+          type: string
+          format: date-time
+          description: Сұрақ ашылған сәт — таймерді сервер белгілейді
+        closesAt:
+          type: string
+          format: date-time
+      required: [position, prompt, options, opensAt, closesAt]
+
+    AnswerSide:
+      type: object
+      properties:
+        chosenIndex:
+          type: [integer, "null"]
+          description: Үлгермеген жауап — `null`
+        isCorrect:
+          type: boolean
+        points:
+          type: integer
+        elapsedMs:
+          type: integer
+      required: [chosenIndex, isCorrect, points, elapsedMs]
+
+    QuestionResult:
+      type: object
+      description: Сұрақ жабылған соң ғана ашылады
+      properties:
+        position:
+          type: integer
+        prompt:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctIndex:
+          type: integer
+        explanation:
+          type: string
+        you:
+          $ref: "#/components/schemas/AnswerSide"
+        opponent:
+          $ref: "#/components/schemas/AnswerSide"
+      required: [position, prompt, options, correctIndex, explanation, you, opponent]
+
+    MatchState:
+      type: object
+      properties:
+        matchId:
+          type: string
+        subjectId:
+          type: string
+        subjectName:
+          type: string
+        status:
+          $ref: "#/components/schemas/MatchStatus"
+        code:
+          type: string
+          description: Жеке матчтың коды. Кезекпен табысқан матчта болмайды.
+        currentIndex:
+          type: integer
+          minimum: 0
+          maximum: 9
+        totalQuestions:
+          type: integer
+          const: 10
+        you:
+          $ref: "#/components/schemas/MatchSide"
+        opponent:
+          oneOf:
+            - $ref: "#/components/schemas/MatchSide"
+            - type: "null"
+          description: Бөлме әлі күтуде болса — `null`
+        question:
+          oneOf:
+            - $ref: "#/components/schemas/PublicQuestion"
+            - type: "null"
+        lastResult:
+          oneOf:
+            - $ref: "#/components/schemas/QuestionResult"
+            - type: "null"
+          description: Тек талдау кезеңінде толтырылады
+      required:
+        [matchId, subjectId, subjectName, status, currentIndex, totalQuestions, you, opponent, question, lastResult]
+
+    AnswerRequest:
+      type: object
+      properties:
+        position:
+          type: integer
+          minimum: 0
+          maximum: 99
+        chosenIndex:
+          type: integer
+          minimum: 0
+          maximum: 9
+      required: [position, chosenIndex]
+
+    OutcomeSide:
+      type: object
+      properties:
+        playerId:
+          type: string
+        displayName:
+          type: string
+        score:
+          type: integer
+        ratingBefore:
+          type: integer
+        ratingAfter:
+          type: integer
+      required: [playerId, displayName, score, ratingBefore, ratingAfter]
+
+    MatchOutcome:
+      type: object
+      properties:
+        matchId:
+          type: string
+        subjectId:
+          type: string
+        subjectName:
+          type: string
+        status:
+          type: string
+          enum: [finished, abandoned]
+        winnerId:
+          type: [string, "null"]
+          description: Тең болса — `null`
+        you:
+          $ref: "#/components/schemas/OutcomeSide"
+        opponent:
+          oneOf:
+            - $ref: "#/components/schemas/OutcomeSide"
+            - type: "null"
+        review:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionResult"
+          maxItems: 10
+      required: [matchId, subjectId, subjectName, status, winnerId, you, opponent, review]
+
+    SubjectRating:
+      type: object
+      properties:
+        subjectId:
+          type: string
+        subjectName:
+          type: string
+        rating:
+          type: integer
+          description: Бастапқы мәні 1000, Эло бойынша өзгереді (K = 24)
+        played:
+          type: integer
+        won:
+          type: integer
+        lost:
+          type: integer
+        drawn:
+          type: integer
+        rank:
+          type: [integer, "null"]
+          description: Пән ішіндегі орны. Әлі ойнамаса — `null`.
+      required: [subjectId, subjectName, rating, played, won, lost, drawn, rank]
+
+    LeaderboardRow:
+      type: object
+      properties:
+        rank:
+          type: integer
+        playerId:
+          type: string
+        displayName:
+          type: string
+        rating:
+          type: integer
+        played:
+          type: integer
+        won:
+          type: integer
+        isYou:
+          type: boolean
+      required: [rank, playerId, displayName, rating, played, won, isYou]
+
+    HistoryRow:
+      type: object
+      properties:
+        matchId:
+          type: string
+        subjectId:
+          type: string
+        subjectName:
+          type: string
+        finishedAt:
+          type: string
+          format: date-time
+        opponentName:
+          type: string
+        yourScore:
+          type: integer
+        opponentScore:
+          type: integer
+        result:
+          type: string
+          enum: [won, lost, drawn]
+        ratingDelta:
+          type: integer
+      required:
+        [matchId, subjectId, subjectName, finishedAt, opponentName, yourScore, opponentScore, result, ratingDelta]
+
+    MatchEvent:
+      description: |
+        Клиенттің ішкі оқиғасы. Бөлек маршрут емес: `GET /api/arena/match/{matchId}`
+        жауаптарының айырмасынан жасалады.
+
+        - `state` — әр сұраныс сайын;
+        - `question` — `question.position` өзгергенде;
+        - `answer-result` — `lastResult` пайда болғанда;
+        - `match-end` — күй `finished` не `abandoned` болғанда, қорытындымен бірге.
+      oneOf:
+        - type: object
+          properties:
+            type:
+              type: string
+              const: state
+            state:
+              $ref: "#/components/schemas/MatchState"
+          required: [type, state]
+        - type: object
+          properties:
+            type:
+              type: string
+              const: question
+            question:
+              $ref: "#/components/schemas/PublicQuestion"
+            state:
+              $ref: "#/components/schemas/MatchState"
+          required: [type, question, state]
+        - type: object
+          properties:
+            type:
+              type: string
+              const: answer-result
+            result:
+              $ref: "#/components/schemas/QuestionResult"
+            state:
+              $ref: "#/components/schemas/MatchState"
+          required: [type, result, state]
+        - type: object
+          properties:
+            type:
+              type: string
+              const: match-end
+            outcome:
+              $ref: "#/components/schemas/MatchOutcome"
+          required: [type, outcome]
+      discriminator:
+        propertyName: type
