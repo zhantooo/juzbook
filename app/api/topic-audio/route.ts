@@ -4,7 +4,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdminUser, requireAuthenticatedUser } from "@/lib/security/auth";
-import { AUDIO_VOICES, buildAudioText, getAudioStorageDir, synthesizeAudio, type AudioMark } from "@/lib/topic-audio";
+import {
+  AUDIO_VOICES,
+  buildAudioText,
+  describeAudioUnavailable,
+  getAudioStorageDir,
+  synthesizeAudio,
+  type AudioMark
+} from "@/lib/topic-audio";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -77,12 +84,17 @@ export async function GET(request: Request) {
       orderBy: { updatedAt: "desc" }
     });
 
+    // Бұл ортада аудио дайындауға бола ма — батырманы көрсету-көрсетпеуді
+    // клиент осыған қарап шешеді
+    const canPrepare = describeAudioUnavailable() === null;
+
     if (!row) {
-      return NextResponse.json({ ready: false });
+      return NextResponse.json({ ready: false, canPrepare });
     }
 
     return NextResponse.json({
       ready: true,
+      canPrepare,
       audio: {
         id: row.id,
         chapterId: row.chapterId,

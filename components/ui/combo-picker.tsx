@@ -67,7 +67,7 @@ export function ComboPicker({
       </button>
 
       {isOpen ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.65rem)] z-50 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.14)] dark:border-zinc-800 dark:bg-zinc-950 dark:shadow-black/40">
+        <div className="absolute left-0 right-0 top-[calc(100%_+_0.65rem)] z-50 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.14)] dark:border-zinc-800 dark:bg-zinc-950 dark:shadow-black/40">
           <div className="max-h-80 overflow-y-auto p-2.5">
             <div className="space-y-2">
               {options.map((option) => {

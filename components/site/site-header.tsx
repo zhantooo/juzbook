@@ -151,7 +151,7 @@ function HeaderNav({
   currentPanel: string | null;
 }) {
   return (
-    <nav className="hidden min-w-0 items-center gap-1 xl:flex xl:gap-2">
+    <nav className="hidden items-center gap-1 whitespace-nowrap lg:flex xl:gap-2">
       {links.map((link) => {
         const active =
           link.href === "/admin?panel=stats"
@@ -174,7 +174,7 @@ function HeaderNav({
               {link.label}
             </span>
             <span
-              className={`absolute bottom-1 left-1/2 h-[2px] w-[calc(100%-1.8rem)] -translate-x-1/2 rounded-full bg-sky-500 transition-transform duration-300 dark:bg-cyan-400 ${
+              className={`absolute bottom-1 left-1/2 h-[2px] w-[calc(100%_-_1.8rem)] -translate-x-1/2 rounded-full bg-sky-500 transition-transform duration-300 dark:bg-cyan-400 ${
                 active ? "scale-x-100" : "origin-center scale-x-0 group-hover:scale-x-100"
               }`}
             />
@@ -202,6 +202,58 @@ export function SiteHeader() {
   // көрінеді. Режимнің өзі бүкіл сайтқа әсер етеді де, таңдалған күйі
   // сақталып қала береді.
   const isReader = (pathname || "").startsWith("/books/");
+
+  /**
+   * Мәзір сыя ма, жоқ па — брейкпоинтпен емес, нақты өлшеумен шешіледі.
+   *
+   * Сілтемелердің ені тілге, қаріпке және пайдаланушының рөліне қарай
+   * өзгереді, ал батырмалар саны бетке қарай құбылады. Сондықтан «1280 px-тен
+   * бастап көрсет» деген ереже бір құрылғыда дұрыс, екіншісінде қате болады:
+   * MacBook-та мәзір «Шығу» батырмасының үстіне шығып кететін. Енді шынайы
+   * ені өлшеніп, сыймаса — гамбургерге жиналады.
+   */
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const brandRef = useRef<HTMLAnchorElement | null>(null);
+  const navSlotRef = useRef<HTMLDivElement | null>(null);
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const navNaturalRef = useRef(0);
+  const [navFits, setNavFits] = useState(true);
+
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const measure = () => {
+      const nav = navSlotRef.current?.firstElementChild as HTMLElement | null;
+      // Мәзір көрініп тұрғанда ғана нақты енін өлшей аламыз, сондықтан
+      // соңғы өлшемді есте сақтаймыз: жиналып қалғанда да салыстыруға керек.
+      if (nav && nav.offsetParent !== null && nav.scrollWidth > 0) {
+        navNaturalRef.current = nav.scrollWidth;
+      }
+
+      const natural = navNaturalRef.current;
+      if (!natural) {
+        return;
+      }
+
+      const brand = brandRef.current?.offsetWidth ?? 0;
+      const actions = actionsRef.current?.offsetWidth ?? 0;
+      // Екі аралық (gap-4) мен шамалы қор
+      const spacing = 56;
+      setNavFits(brand + natural + actions + spacing <= row.clientWidth);
+    };
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    if (actionsRef.current) {
+      observer.observe(actionsRef.current);
+    }
+    measure();
+
+    return () => observer.disconnect();
+  }, [pathname, session?.role, isReader]);
   const reminderTimeoutRef = useRef<number | null>(null);
 
   const links = getRoleLinks(session?.role);
@@ -280,29 +332,33 @@ export function SiteHeader() {
   // z-60: помодоро виджеті z-50 болғандықтан, оқу режимі панелі оның астында қалмауы керек
   return (
     <header className="sticky top-0 z-[60] border-b border-slate-200/80 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-      <div className="page-width relative flex items-center justify-between gap-4 px-0 py-4">
-        <Link href={getHomeLink(session?.role)} className="flex items-center">
+      <div ref={rowRef} className="page-width relative flex items-center justify-between gap-4 px-0 py-4">
+        <Link ref={brandRef} href={getHomeLink(session?.role)} className="flex shrink-0 items-center">
           <BrandLogo />
         </Link>
 
-        <Suspense fallback={<HeaderNav links={links} pathname={pathname} currentPanel={null} />}>
-          <HeaderNavWithPanel links={links} pathname={pathname} />
-        </Suspense>
+        {/* `contents` — қаптама өз қорабын жасамайды, мәзір тікелей жолақтың
+            баласы болып қала береді */}
+        <div ref={navSlotRef} className={navFits ? "contents" : "hidden"}>
+          <Suspense fallback={<HeaderNav links={links} pathname={pathname} currentPanel={null} />}>
+            <HeaderNavWithPanel links={links} pathname={pathname} />
+          </Suspense>
+        </div>
 
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div ref={actionsRef} className="flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Телефонда жоғарғы мәзір сыймайды — гамбургер батырмасы арқылы ашылады */}
           <button
             type="button"
             onClick={() => setIsMobileNavOpen((current) => !current)}
             aria-label={isMobileNavOpen ? "Мәзірді жабу" : "Мәзірді ашу"}
             aria-expanded={isMobileNavOpen}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 xl:hidden"
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 ${navFits ? "lg:hidden" : ""}`}
           >
             {isMobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
           {roleBadge ? (
-            <div className="hidden rounded-full border border-slate-200/80 bg-white px-4 py-2 text-xs font-semibold tracking-[0.12em] text-slate-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 xl:inline-flex">
+            <div className="hidden rounded-full border border-slate-200/80 bg-white px-4 py-2 text-xs font-semibold tracking-[0.12em] text-slate-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 lg:inline-flex">
               {roleBadge}
             </div>
           ) : null}
@@ -345,7 +401,7 @@ export function SiteHeader() {
         {isMobileNavOpen ? (
           <div
             data-header-popup="true"
-            className="absolute left-0 right-0 top-[calc(100%+0.6rem)] z-50 rounded-3xl border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_24px_80px_-28px_rgba(14,165,233,0.35)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/95 xl:hidden"
+            className="absolute left-0 right-0 top-[calc(100%_+_0.6rem)] z-50 rounded-3xl border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_24px_80px_-28px_rgba(14,165,233,0.35)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/95"
           >
             {links.map((link) => {
               const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
@@ -381,7 +437,7 @@ export function SiteHeader() {
         ) : null}
 
         {taskReminder ? (
-          <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(92vw,22rem)] rounded-3xl border border-amber-200 bg-white/95 p-4 shadow-xl shadow-amber-100/60 backdrop-blur dark:border-amber-500/30 dark:bg-zinc-950/95 dark:shadow-amber-500/10">
+          <div className="absolute right-0 top-[calc(100%_+_0.75rem)] z-[60] w-[min(92vw,22rem)] rounded-3xl border border-amber-200 bg-white/95 p-4 shadow-xl shadow-amber-100/60 backdrop-blur dark:border-amber-500/30 dark:bg-zinc-950/95 dark:shadow-amber-500/10">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.12em] text-amber-600 dark:text-amber-300">Еске салу</p>

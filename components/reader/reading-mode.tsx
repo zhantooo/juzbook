@@ -270,7 +270,7 @@ export function ReadingModeControl() {
       </button>
 
       {open ? (
-        <div data-header-popup="true" className="absolute right-0 top-[calc(100%+0.7rem)] z-[60] w-[min(94vw,22rem)] rounded-panel border border-slate-200/80 bg-white/95 p-5 shadow-[0_28px_80px_-30px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95">
+        <div data-header-popup="true" className="absolute right-0 top-[calc(100%_+_0.7rem)] z-[60] w-[min(94vw,22rem)] rounded-panel border border-slate-200/80 bg-white/95 p-5 shadow-[0_28px_80px_-30px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-base font-semibold text-slate-900 dark:text-zinc-50">Оқу режимі</p>

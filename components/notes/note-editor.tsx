@@ -309,7 +309,7 @@ export function NoteEditor({
           {isEmojiMenuOpen ? (
             <div
               data-note-emoji-menu="true"
-              className="fixed z-[100] max-h-[420px] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-panel border border-zinc-700 bg-zinc-900 p-3 text-white shadow-2xl"
+              className="fixed z-[100] max-h-[420px] w-[min(22rem,calc(100vw_-_1.5rem))] overflow-y-auto rounded-panel border border-zinc-700 bg-zinc-900 p-3 text-white shadow-2xl"
               style={{ left: emojiMenuPosition.left, top: emojiMenuPosition.top }}
             >
               <div className="flex items-center justify-between">

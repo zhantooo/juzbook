@@ -144,7 +144,7 @@ export default function HomePage() {
 
       <main id="juz-main" className="page-width relative pb-24 pt-10">
         <motion.section
-          className="grid min-h-[calc(100vh-11rem)] grid-cols-1 items-center gap-10 lg:grid-cols-[0.88fr_1.12fr]"
+          className="grid min-h-[calc(100vh_-_11rem)] grid-cols-1 items-center gap-10 lg:grid-cols-[0.88fr_1.12fr]"
           style={reduceMotion ? undefined : { opacity: heroOpacity, y: heroLift }}
         >
           <div className="min-w-0">
@@ -303,7 +303,7 @@ export default function HomePage() {
                       </button>
 
                       {isSubjectPickerOpen ? (
-                        <div className="absolute bottom-[calc(100%+0.9rem)] right-0 z-40 max-h-80 w-full overflow-y-auto rounded-3xl border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_24px_80px_-28px_rgba(14,165,233,0.35)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/95 dark:shadow-[0_24px_80px_-28px_rgba(34,211,238,0.18)]">
+                        <div className="absolute bottom-[calc(100%_+_0.9rem)] right-0 z-40 max-h-80 w-full overflow-y-auto rounded-3xl border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_24px_80px_-28px_rgba(14,165,233,0.35)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/95 dark:shadow-[0_24px_80px_-28px_rgba(34,211,238,0.18)]">
                           {subjects.map((subject) => {
                             const active = activeSearchSubject?.id === subject.id;
 

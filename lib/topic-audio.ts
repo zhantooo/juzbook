@@ -29,6 +29,26 @@ export function getAudioStorageDir() {
   return process.env.JUZBOOK_AUDIO_DIR?.trim() || path.join(process.cwd(), "storage", "topic-audio");
 }
 
+/**
+ * Аудионы осы ортада дайындауға бола ма.
+ *
+ * Орналастырылған нұсқада (Vercel) екі нәрсе жоқ: Python да, жазуға
+ * болатын қалта да — бүкіл файл жүйесі тек оқуға ашық. Бұрын сол жерде
+ * `mkdir '/var/task/storage'` деген шикі қате оқушыға көрсетілетін.
+ * Енді алдын ала тексереміз де, түсінікті себебін айтамыз.
+ */
+export function describeAudioUnavailable(): string | null {
+  if (process.env.JUZBOOK_AUDIO_DIR?.trim()) {
+    return null;
+  }
+
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return "Аудио дайындау бұл нұсқада қолжетімсіз: серверде дыбыс қызметі орнатылмаған.";
+  }
+
+  return null;
+}
+
 export function getPythonExecutable() {
   return (
     process.env.JUZBOOK_PYTHON_PATH?.trim() ||
@@ -220,6 +240,11 @@ async function runPrepare(options: {
   const text = buildAudioText(chapter.title, chapter.content);
   if (text.length < 40) {
     throw new Error("Аудио жасауға мәтін тым қысқа.");
+  }
+
+  const unavailable = describeAudioUnavailable();
+  if (unavailable) {
+    throw new Error(unavailable);
   }
 
   const fileName = `${chapter.id}--${voice}.mp3`;

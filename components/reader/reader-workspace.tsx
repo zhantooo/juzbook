@@ -208,6 +208,9 @@ export function ReaderWorkspace({
   const [audioMarks, setAudioMarks] = useState<AudioMark[]>([]);
   const [isAudioPrepared, setIsAudioPrepared] = useState(false);
   const [isAudioChecking, setIsAudioChecking] = useState(false);
+  // Бұл ортада аудио дайындауға бола ма. Орналастырылған нұсқада серверде
+  // дыбыс қызметі жоқ, сондықтан батырманы мүлде көрсетпейміз.
+  const [canPrepareAudio, setCanPrepareAudio] = useState(true);
   // Аудио элементі аудио панелі ашылғанда ғана DOM-ға түседі — сөзді ерекшелеу
   // сол элементке жазылуы үшін оны күй ретінде ұстаймыз.
   const [audioNode, setAudioNode] = useState<HTMLAudioElement | null>(null);
@@ -1109,11 +1112,17 @@ export function ReaderWorkspace({
         );
         const payload = (await response.json().catch(() => ({}))) as {
           ready?: boolean;
+          canPrepare?: boolean;
           audio?: { url: string; marks: AudioMark[] };
         };
 
         if (cancelled) {
           return;
+        }
+
+        // Орналастырылған нұсқада дыбыс қызметі жоқ: батырманы көрсетпейміз
+        if (typeof payload.canPrepare === "boolean") {
+          setCanPrepareAudio(payload.canPrepare);
         }
 
         if (payload.ready && payload.audio) {
@@ -1439,7 +1448,7 @@ export function ReaderWorkspace({
                     : "xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[330px_minmax(0,1fr)]"
                 }`}
               >
-                <aside className="custom-scrollbar glass-card h-fit w-full min-w-0 self-start overflow-x-hidden p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+                <aside className="custom-scrollbar glass-card h-fit w-full min-w-0 self-start overflow-x-hidden p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh_-_7rem)] lg:overflow-y-auto">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-zinc-400">Кітап құрылымы</p>
                     <span className="text-xs text-emerald-600 dark:text-emerald-300">
@@ -1741,7 +1750,15 @@ export function ReaderWorkspace({
                 </section>
 
                 {showStudyPanel ? (
-                <aside className="glass-card h-fit w-full min-w-0 self-start p-5 xl:sticky xl:top-24">
+                <aside
+                  /**
+                   * Панель мазмұны экранға сыймайды (тест, аудио, флешкарта,
+                   * жоспар). Бұрын ол беттің ең түбіне дейін сырғытқанда ғана
+                   * толық көрінетін. Енді өз ішінде айналады: панель экранға
+                   * бекітіліп тұрады да, артығы ішкі сырғытпамен ашылады.
+                   */
+                  className="glass-card w-full min-w-0 self-start p-5 xl:sticky xl:top-24 xl:max-h-[calc(100vh_-_7.5rem)] xl:overflow-y-auto xl:overscroll-contain"
+                >
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-sky-600 dark:text-cyan-300" />
                     <h2 className="text-2xl font-semibold">Конспект және навигация</h2>
@@ -1817,7 +1834,14 @@ export function ReaderWorkspace({
                         {/* Дайын аудио болса, ойнатқыштың өзі жеткілікті — қосымша
                             «қосу» түймесі керек емес. Түйме тек аудио әлі
                             дайындалмаған тақырыпта ғана көрінеді. */}
-                        {!isAudioPrepared ? (
+                        {!isAudioPrepared && !canPrepareAudio ? (
+                          <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                            Бұл тақырыптың аудиосы әзірге дайындалмаған. Дыбыс жасау қызметі сайттың
+                            осы нұсқасында қосылмаған, сондықтан мәтінді өзің оқи бер.
+                          </p>
+                        ) : null}
+
+                        {!isAudioPrepared && canPrepareAudio ? (
                           <button
                             type="button"
                             onClick={() => void generateTopicAudio()}
@@ -2017,7 +2041,7 @@ export function ReaderWorkspace({
                 </button>
               </div>
 
-              <div className="max-h-[calc(92vh-154px)] overflow-y-auto px-6 py-6">
+              <div className="max-h-[calc(92vh_-_154px)] overflow-y-auto px-6 py-6">
                 <div className="grid gap-4">
                   <input
                     value={summaryTitle}
@@ -2125,7 +2149,7 @@ export function ReaderWorkspace({
         ) : null}
         {/* Конспект терезесі профильде өшірілсе, оқу бетінде көрінбейді */}
         {resolved && continueReadingSettings.notesEnabled ? (
-          <div className="fixed bottom-20 right-6 z-50 flex max-h-[calc(100dvh-7rem)] w-[min(92vw,26rem)] flex-col">
+          <div className="fixed bottom-20 right-6 z-50 flex max-h-[calc(100dvh_-_7rem)] w-[min(92vw,26rem)] flex-col">
             {isSummaryMiniCollapsed ? (
               <div className="flex justify-end">
                 <button
