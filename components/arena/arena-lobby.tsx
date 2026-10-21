@@ -49,6 +49,28 @@ export function ArenaLobbyContent({ subjectId, subjectName }: { subjectId: strin
     };
   }, []);
 
+  /**
+   * Басты беттегі «Ойнау» батырмасы осында `?auto=1` деп әкеледі: сонда
+   * оқушыға тағы бір рет басудың қажеті жоқ, қарсылас іздеу бірден
+   * басталады. Мекенжайдан белгіні алып тастаймыз — бетті жаңартқанда
+   * қайта іске қосылмауы керек.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("auto") !== "1") {
+      return;
+    }
+
+    window.history.replaceState(null, "", window.location.pathname);
+    void startRandom();
+    // Бір рет қана: тәуелділік тізімі әдейі бос
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const goToMatch = useCallback(
     (matchId: string) => {
       router.push(`/arena/match/${encodeURIComponent(matchId)}`);

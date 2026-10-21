@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { expandRomanNumerals } from "@/lib/text-numerals";
 
 /** Аудиодағы бір сөздің уақыт белгісі */
 export type AudioMark = {
@@ -76,7 +77,12 @@ export function buildAudioText(title: string, content: string) {
     .replace(/\s+/g, " ")
     .trim();
 
-  return `${title}. ${plain}`.trim();
+  /**
+   * Рим цифрларын сөзбен жазып береміз. Дыбыс қызметі «XVIII» дегенді сан
+   * деп танымай, әріптеп оқиды — «икс вэ и и и» болып шығады. Оқулықта
+   * мұндай жазу көп: ғасырлар, тараулар, патша нөмірлері.
+   */
+  return expandRomanNumerals(`${title}. ${plain}`.trim());
 }
 
 function describeTtsError(stderr: string) {

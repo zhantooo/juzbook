@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { arenaPrisma } from "@/lib/arena/db";
 
 /**
@@ -50,7 +51,7 @@ async function countBySubject() {
 }
 
 /** Arena-дағы пәндердің тізімі: ойналатыны да, әзірге дайын еместері де */
-export async function listArenaSubjects(): Promise<ArenaSubject[]> {
+async function listArenaSubjectsUncached(): Promise<ArenaSubject[]> {
   const [counts, subjects] = await Promise.all([
     countBySubject(),
     arenaPrisma.arenaSubject.findMany({
@@ -84,12 +85,25 @@ export async function listArenaSubjects(): Promise<ArenaSubject[]> {
   });
 }
 
+/**
+ * Тізім кэштеледі.
+ *
+ * Сұрақ банкі сирек өзгереді (толтыру скрипті жүргенде ғана), ал Arena беті
+ * мен пән беті оны әр ашқанда сұрайды. Орналастырылған нұсқада дерекқор
+ * желінің арғы жағында тұрғандықтан, әр сұраныс жүздеген миллисекунд алатын.
+ * Бес минуттық кэш бетті лезде ашады да, жаңа пән қосылса да ұзақ күттірмейді.
+ */
+const listArenaSubjectsCached = unstable_cache(listArenaSubjectsUncached, ["arena-subjects"], {
+  revalidate: 300,
+  tags: ["arena-subjects"]
+});
+
+export async function listArenaSubjects(): Promise<ArenaSubject[]> {
+  return listArenaSubjectsCached();
+}
+
 /** Бір пәнде ойнауға бола ма */
 export async function isSubjectPlayable(subjectId: string): Promise<boolean> {
-  const counts = await countBySubject();
-  const entry = counts.get(subjectId);
-  if (!entry) {
-    return false;
-  }
-  return entry.medium >= MINIMUM.medium && entry.easy >= MINIMUM.easy && entry.hard >= MINIMUM.hard;
+  const subjects = await listArenaSubjects();
+  return subjects.find((subject) => subject.id === subjectId)?.playable ?? false;
 }

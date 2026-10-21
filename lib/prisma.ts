@@ -1,4 +1,15 @@
-import { PrismaClient } from "@/generated/prisma-client";
+import { Prisma, PrismaClient } from "@/generated/prisma-client";
+
+/**
+ * `Prisma` кеңістігі де осы жерден шығарылады.
+ *
+ * Себебі: `$queryRaw` ішіндегі `Prisma.sql` үзінділері клиент қай модуль
+ * данасынан құрылғанын тексереді. Маршрут оны бөлек жолмен импорттаса,
+ * Next бөлек көшірме жинайды да, үзінді SQL емес, қарапайым мән болып
+ * саналып, параметр ретінде JSON-ға айналады. Қате сол кезде мүлде
+ * басқаша көрінеді: «оператор не существует: jsonb ~~ text».
+ */
+export { Prisma };
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;

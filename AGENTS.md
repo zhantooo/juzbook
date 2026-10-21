@@ -97,6 +97,18 @@ Operational notes:
   `catalog-navigation`). Call `revalidateCatalogViews(...)` after writes.
 - **Real-ESRGAN `realesrgan-x4plus` only works with `-s 4`.** Any other scale
   silently produces corrupted tiles and still exits 0.
+- **`$queryRaw` as a tagged template turns every `${…}` into a parameter.** A
+  nested `Prisma.sql` fragment is then sent as a value and serialised to JSON,
+  and Postgres fails with `operator does not exist: jsonb ~~ text`. To compose
+  SQL, build the whole query with `Prisma.sql` and pass it as an argument:
+  `prisma.$queryRaw(Prisma.sql\`…\`)`.
+- **Tailwind arbitrary values need `_` for spaces.** `max-h-[calc(100vh-7rem)]`
+  is invalid CSS — `calc` requires spaces around `-` — and the browser drops the
+  whole declaration without a word. Write `max-h-[calc(100vh_-_7rem)]`. This one
+  silently broke both reader side panels.
+- **Kazakh search must fold letters.** Students type `Тауке` for `Тәуке`. Both
+  sides go through `lib/search-folding.ts` (and Postgres `translate()`), so the
+  nine Kazakh letters match their Russian look-alikes.
 
 ---
 

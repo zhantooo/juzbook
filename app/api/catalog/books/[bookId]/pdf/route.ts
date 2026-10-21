@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -56,7 +56,21 @@ export async function GET(_request: Request, context: { params: Promise<{ bookId
     ? await readStoredPdf(book.pdfData)
     : decodePdfDataUrl(book.pdfData);
 
+  /**
+   * Файл дискіде табылмады.
+   *
+   * Орналастырылған нұсқада `storage/book-pdf/` қалтасы жоқ: PDF-тер
+   * авторлық құқық себебімен репозиторийге салынбайды. Олар суреттер
+   * сияқты бөлек файл қоймасында жатыр, сондықтан сол жаққа бағыттаймыз.
+   */
   if (!file) {
+    const host = process.env.NEXT_PUBLIC_BOOKS_BLOB_HOST?.trim();
+    const storedName = book.pdfData.startsWith("file:") ? basename(book.pdfData.slice("file:".length).trim()) : "";
+
+    if (host && storedName && /^[A-Za-z0-9_-]+\.pdf$/.test(storedName)) {
+      return NextResponse.redirect(`https://${host}/book-pdf/${storedName}`, 302);
+    }
+
     return NextResponse.json({ error: "PDF файлының сақталған форматы жарамсыз." }, { status: 422 });
   }
 

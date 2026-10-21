@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Clock3, Loader2, RotateCcw, Swords, Trophy, X } from "lucide-react";
+import { Check, Clock3, Loader2, RotateCcw, Trophy, X } from "lucide-react";
 import { QUESTION_MS } from "@/lib/arena/scoring";
 import { httpArenaService } from "@/lib/arena/service.http";
 import type { ArenaService, MatchOutcome, MatchState, QuestionResult } from "@/lib/arena/service";
@@ -186,25 +186,47 @@ export function ArenaMatch({
 
   return (
     <div className="space-y-5">
-      <div className="glass-card flex flex-wrap items-center justify-between gap-4 p-5">
-        <div className="flex items-center gap-3">
-          <Swords className="h-5 w-5 text-sky-700 dark:text-cyan-300" />
-          <div>
-            <p className="text-sm font-semibold">{state.subjectName}</p>
-            <p className="text-xs uppercase tracking-[0.1em] text-slate-500 dark:text-zinc-500">
-              {state.currentIndex + 1} / {state.totalQuestions} сұрақ
+      {/* Есеп тақтасы: екі жақ бетпе-бет, ортасында сұрақтың нөмірі */}
+      <div className="glass-card p-5">
+        <div className="flex items-center justify-between gap-3" aria-live="polite" aria-atomic="true">
+          <ScoreBadge label="Сен" score={state.you.score} answered={state.you.answered} side="you" />
+
+          <div className="shrink-0 text-center">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400 dark:text-zinc-600">
+              {state.subjectName}
+            </p>
+            <p className="mt-0.5 text-lg font-black italic tracking-tight text-slate-400 dark:text-zinc-600">
+              VS
+            </p>
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-slate-500 dark:text-zinc-400">
+              {state.currentIndex + 1} / {state.totalQuestions}
             </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-5" aria-live="polite" aria-atomic="true">
-          <ScoreBadge label="Сен" score={state.you.score} answered={state.you.answered} highlight />
           <ScoreBadge
             label={state.opponent?.displayName ?? "Қарсылас"}
             score={state.opponent?.score ?? 0}
             answered={Boolean(state.opponent?.answered)}
+            side="opponent"
           />
         </div>
+
+        {/* Он сұрақтың қайсысында тұрғанымыз — бір қарағанда көрінуі керек */}
+        <ol className="mt-4 flex items-center gap-1.5" aria-label="Матчтың барысы">
+          {Array.from({ length: state.totalQuestions }, (_, index) => (
+            <li
+              key={index}
+              aria-current={index === state.currentIndex ? "step" : undefined}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${
+                index < state.currentIndex
+                  ? "bg-sky-500 dark:bg-cyan-400"
+                  : index === state.currentIndex
+                    ? "bg-sky-300 dark:bg-cyan-500/50"
+                    : "bg-slate-200 dark:bg-zinc-800"
+              }`}
+            />
+          ))}
+        </ol>
       </div>
 
       {isStale ? (
@@ -304,18 +326,40 @@ function ScoreBadge({
   label,
   score,
   answered,
-  highlight = false
+  side
 }: {
   label: string;
   score: number;
   answered: boolean;
-  highlight?: boolean;
+  side: "you" | "opponent";
 }) {
+  const isYou = side === "you";
+
   return (
-    <div className="text-right">
-      <p className="text-xs uppercase tracking-[0.1em] text-slate-500 dark:text-zinc-500">{label}</p>
-      <p className={`text-xl font-semibold tabular-nums ${highlight ? "text-sky-700 dark:text-cyan-300" : ""}`}>{score}</p>
-      <p className="text-[11px] text-slate-400 dark:text-zinc-600">{answered ? "жауап берді" : "ойланып жатыр"}</p>
+    <div className={`min-w-0 flex-1 ${isYou ? "text-left" : "text-right"}`}>
+      <p className="truncate text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-zinc-500">
+        {label}
+      </p>
+      <p
+        className={`text-3xl font-bold tabular-nums ${
+          isYou ? "text-sky-700 dark:text-cyan-300" : "text-rose-600 dark:text-rose-300"
+        }`}
+      >
+        {score}
+      </p>
+      <p
+        className={`mt-0.5 inline-flex items-center gap-1.5 text-[11px] ${
+          answered ? "text-emerald-700 dark:text-emerald-400" : "text-slate-400 dark:text-zinc-600"
+        }`}
+      >
+        <span
+          aria-hidden
+          className={`inline-block h-1.5 w-1.5 rounded-full ${
+            answered ? "bg-emerald-500" : "animate-pulse bg-slate-400 dark:bg-zinc-600"
+          }`}
+        />
+        {answered ? "жауап берді" : "ойланып жатыр"}
+      </p>
     </div>
   );
 }
