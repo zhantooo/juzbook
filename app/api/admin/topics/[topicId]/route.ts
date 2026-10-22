@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { revalidateCatalogViews } from "@/lib/catalog-db";
+import { indexChapter } from "@/lib/search/indexer";
+import { hasVectorSearch } from "@/lib/search/vector-db";
 import { prisma } from "@/lib/prisma";
 import { sanitizeRichText } from "@/lib/sanitize";
 import { requireAdminUser } from "@/lib/security/auth";
@@ -97,6 +99,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ topic
       });
     } catch (error) {
       console.error("Каталог кэшін жаңарту кезінде қате пайда болды.", error);
+    }
+
+    /**
+     * Мағыналық іздеудің индексін сол сәтте жаңартамыз — түнгі жүгірісті
+     * күтудің қажеті жоқ. Жауапты кідіртпейміз: индекстеу құласа да,
+     * мәтін сақталғаны маңызды, ал кезекте тұрған тақырыпты түнгі жүгіріс
+     * бәрібір алады.
+     */
+    if (hasVectorSearch()) {
+      void indexChapter(existing.id).catch((error) => {
+        console.error("[search] тақырыпты индекстеу сәтсіз", error);
+      });
     }
 
     return NextResponse.json({ ok: true, topic: updated });

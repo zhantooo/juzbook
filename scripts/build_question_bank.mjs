@@ -11,7 +11,7 @@
  *   2. Дұрыс жауап бір әріпке үйіріліп қалмайды — нұсқалар әр сұрақта
  *      араластырылып, дұрыс жауап A/B/C/D арасында тең таралады.
  *
- * node --env-file=.env scripts/build_question_bank.mjs [--limit=50] [--jobs=8] [--book=<id>] [--dry-run]
+ * node --env-file=.env scripts/build_question_bank.mjs [--limit=50] [--jobs=8] [--book=<id>] [--subject=<id>] [--dry-run]
  *
  * Жұмыс үзілсе, қайта қосуға болады: толық банкі бар тақырыптар аттап кетіледі.
  */
@@ -334,6 +334,9 @@ async function main() {
   const args = process.argv.slice(2);
   const limit = Number((args.find((value) => value.startsWith("--limit=")) || "").split("=")[1] || "0");
   const bookId = (args.find((value) => value.startsWith("--book=")) || "").split("=")[1] || null;
+  // Бір пәннің бүкіл кітабын қамту үшін: ДЖТ сияқты банкі мүлде жоқ пәнді
+  // кітап-кітаппен жүгірту ыңғайсыз
+  const subjectId = (args.find((value) => value.startsWith("--subject=")) || "").split("=")[1] || null;
   const dryRun = args.includes("--dry-run");
   const concurrency = Number((args.find((value) => value.startsWith("--jobs=")) || "").split("=")[1] || "5");
 
@@ -348,7 +351,11 @@ async function main() {
   const topics = await prisma.chapter.findMany({
     where: {
       isHidden: false,
-      book: { isHidden: false, ...(bookId ? { id: bookId } : {}) },
+      book: {
+        isHidden: false,
+        ...(bookId ? { id: bookId } : {}),
+        ...(subjectId ? { subjectId } : {})
+      },
       ...(bookId ? { bookId } : {})
     },
     orderBy: [{ bookId: "asc" }, { order: "asc" }],

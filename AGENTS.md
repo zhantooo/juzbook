@@ -112,6 +112,51 @@ Operational notes:
 
 ---
 
+## Search
+
+Catalogue search is two systems answering the same query, merged.
+
+| Piece | Where |
+|---|---|
+| Letter folding (ә→а, қ→к, …) | [`lib/search-folding.ts`](lib/search-folding.ts) |
+| Chunking and content hashing | [`lib/search/chunking.ts`](lib/search/chunking.ts) |
+| Gemini embeddings | [`lib/search/embeddings.ts`](lib/search/embeddings.ts) |
+| Index building and updating | [`lib/search/indexer.ts`](lib/search/indexer.ts) |
+| Vector query | [`lib/search/semantic.ts`](lib/search/semantic.ts) |
+| The endpoint that merges both | [`app/api/catalog/search/route.ts`](app/api/catalog/search/route.ts) |
+
+Keyword search is exact and free; it wins on names, dates and terms. Semantic
+search wins when a student asks in their own words — measured on 85 questions
+from the bank, keyword got 55% of the hard cases and embeddings 95%. Neither
+replaces the other, so both run and the results are merged.
+
+### Rules for search
+
+1. **Vectors live in Turso**, in `SearchChunk` / `SearchChapterState`. Those
+   tables are created only by `ensureSearchSchema()` with `IF NOT EXISTS` — it
+   never drops anything, and Prisma never touches Turso.
+2. **The index keeps itself current.** Each chapter's content hash is stored;
+   a chapter is re-embedded only when its hash changes. A new book is picked up
+   automatically by the nightly cron (`/api/cron/search-index`, `vercel.json`),
+   and an admin edit re-indexes that one chapter immediately.
+3. **Semantic search must never break the page.** If Turso or the Gemini quota
+   is unavailable, `semanticSearch` returns an empty list and keyword results
+   stand on their own.
+4. **`scripts/search_text_index.mjs` must be run on a new database.** It creates
+   the `pg_trgm` extension and the trigram indexes that keyword search needs.
+   Run it with `--prod` against the deployed database too.
+
+### Known traps — search
+
+- **The trigram index only works if the expression matches exactly.** The index
+  is on `translate(lower(col), 'әөүұқғіңһ', 'аоуукгинх')`; change the fold table
+  in one place and the planner silently falls back to a full scan.
+- **Document and query embeddings are different.** `RETRIEVAL_DOCUMENT` and
+  `RETRIEVAL_QUERY` produce different vectors for the same text. Mixing them up
+  costs accuracy without any error.
+
+---
+
 ## Arena
 
 Arena is the 1v1 duel: two students get the same ten questions from one

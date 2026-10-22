@@ -9,6 +9,8 @@
  * TURSO_DATABASE_URL қойылған күйде орындалады.
  *
  * node --env-file=.env scripts/arena_push_to_turso.mjs [--questions=20000]
+ *
+ * Әдепкіде бүкіл банк көшіріледі.
  */
 import { PrismaLibSQL } from "@prisma/adapter-libsql";
 import { PrismaClient } from "file:///C:/Users/user/Documents/JUZBOOKS/generated/arena-client/index.js";
@@ -20,7 +22,7 @@ if (!url) {
 }
 
 const args = process.argv.slice(2);
-/** Тегін жоспардың шегіне сыю үшін сұрақ санын шектеуге болады */
+/** Сынақ үшін ғана: берілмесе, бүкіл банк көшіріледі */
 const limit = Number((args.find((value) => value.startsWith("--questions=")) || "").split("=")[1] || "0");
 
 // Жергілікті файл
@@ -48,36 +50,48 @@ const already = new Set(
 console.log(`Turso-да бұрыннан: ${already.size} сұрақ`);
 
 /**
- * Пән мен деңгей бойынша теңдей аламыз: матчқа 6 орташа, 2 жеңіл, 2 күрделі
- * керек, сондықтан бәрін көшірудің қажеті жоқ — әр пәнге жеткілікті мөлшер
- * алсақ, тегін жоспар да сыяды.
+ * Бүкіл банк көшіріледі.
+ *
+ * Бұрын пәнге мың сұрақтан ғана алынатын: матчқа оны сұрақ керек, сондықтан
+ * мыңы да жетеді деп есептелген. Бірақ бір оқушы көп ойнағанда сұрақтар
+ * қайталана бастайды, әрі пән бойынша толық банк болғаны дұрыс. 97 мың сұрақ
+ * Turso-да 50 МБ-тан аспайды, ал тегін шек — 9 ГБ.
+ *
+ * `--questions=<сан>` берілсе, сол шамамен шектеледі (сынақ үшін).
  */
-const PER_SUBJECT = limit ? Math.floor(limit / Math.max(1, subjects.length)) : 3000;
-const MIX = { medium: 0.6, easy: 0.2, hard: 0.2 };
-
 let copied = 0;
-for (const subject of subjects) {
-  for (const [difficulty, share] of Object.entries(MIX)) {
-    const take = Math.round(PER_SUBJECT * share);
-    const rows = await local.arenaQuestionBank.findMany({
-      where: { subjectId: subject.id, difficulty },
-      take,
-      orderBy: { id: "asc" }
-    });
-    for (let index = 0; index < rows.length; index += 100) {
-      const chunk = rows.slice(index, index + 100);
-      const fresh = chunk.filter((row) => !already.has(row.sourceId));
-      if (!fresh.length) {
-        continue;
-      }
-      await remote.arenaQuestionBank.createMany({ data: fresh });
-      for (const row of fresh) {
-        already.add(row.sourceId);
-      }
-      copied += fresh.length;
-      process.stdout.write(`\rкөшірілді: ${copied}`);
-    }
+let cursorId = undefined;
+const hardLimit = limit || Number.POSITIVE_INFINITY;
+const startedAt = Date.now();
+
+for (;;) {
+  if (copied >= hardLimit) {
+    break;
   }
+
+  const page = await local.arenaQuestionBank.findMany({
+    take: 500,
+    ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
+    orderBy: { id: "asc" }
+  });
+
+  if (!page.length) {
+    break;
+  }
+  cursorId = page.at(-1).id;
+
+  const fresh = page.filter((row) => !already.has(row.sourceId)).slice(0, hardLimit - copied);
+  for (let index = 0; index < fresh.length; index += 100) {
+    const chunk = fresh.slice(index, index + 100);
+    await remote.arenaQuestionBank.createMany({ data: chunk });
+    for (const row of chunk) {
+      already.add(row.sourceId);
+    }
+    copied += chunk.length;
+  }
+
+  const seconds = Math.round((Date.now() - startedAt) / 1000);
+  process.stdout.write("\rкөшірілді: " + copied + " | " + seconds + " с");
 }
 
 const total = await remote.arenaQuestionBank.count();

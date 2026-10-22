@@ -1,6 +1,8 @@
 import { Prisma, prisma } from "@/lib/prisma";
 import { buildHighlightedSearchSnippet } from "@/lib/search-preview";
 import { FOLD_FROM, FOLD_TO, escapeLikePattern, splitSearchWords } from "@/lib/search-folding";
+import { semanticSearch } from "@/lib/search/semantic";
+import { hasVectorSearch } from "@/lib/search/vector-db";
 
 export const runtime = "nodejs";
 
@@ -17,6 +19,18 @@ type SearchRow = {
   titleHit: boolean;
 };
 
+/**
+ * Екі іздеу біріктіріледі.
+ *
+ * Кілт сөзбен іздеу нақты атауда дәлірек («Тәуке хан», «1465 жыл»), ал
+ * мағыналық іздеу оқушы өз сөзімен сұрағанда дәлірек. Өлшеп көргенде
+ * айырма айқын болды: мәтінмен сөзі аз қабысатын сұрауларда кілт сөз
+ * 55%, ал эмбеддинг 95% дәлдік берді. Сондықтан екеуі де жүргізіледі.
+ *
+ * Реттілік: кілт сөзбен табылғандар жоғары тұрады (олар әдетте дәл сәйкес),
+ * ал мағына бойынша ғана табылғандар соңынан қосылады. Мағыналық іздеу
+ * істемей қалса (кілт жоқ, квота бітті), бет бұрынғыдай жұмыс істей береді.
+ */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -32,40 +46,34 @@ export async function GET(request: Request) {
       return Response.json({ results: [] });
     }
 
-    /**
-     * Іздеу әріп бүктеумен жүреді.
-     *
-     * Оқушы «Тауке хан» деп жазса да, кітаптағы «Тәуке хан» табылуы керек:
-     * қазақ әліпбиінің тоғыз әрпі жиі орыс әліпбиіндегі ұқсасымен
-     * алмастырылады. Сондықтан екі жақты да `translate()` арқылы бір түрге
-     * келтіреміз — қосымша кеңейтім керек емес.
-     *
-     * Әр сөз бөлек ізделеді де, бәрі табылуы талап етіледі. Сол себепті
-     * сөздердің реті маңызды емес, ал артық сөз нәтижені шектейді.
-     */
     const folded = (column: string) =>
       Prisma.sql`translate(lower(${Prisma.raw(column)}), ${FOLD_FROM}, ${FOLD_TO})`;
 
-    const wordConditions = words.map((word) => {
-      const pattern = `%${escapeLikePattern(word)}%`;
-      return Prisma.sql`(
-        ${folded('c."title"')} LIKE ${pattern} ESCAPE '\\'
-        OR ${folded('c."excerpt"')} LIKE ${pattern} ESCAPE '\\'
-        OR ${folded('c."content"')} LIKE ${pattern} ESCAPE '\\'
-      )`;
-    });
-
-    // Тақырып атауында табылғаны жоғары тұруы керек
     const titlePattern = `%${escapeLikePattern(words[0])}%`;
 
     /**
+     * `LIKE '%сөз%'` жай индексті пайдалана алмайды — іздеу сөзі мәтіннің
+     * ортасынан келеді. Сондықтан `scripts/search_text_index.mjs` дәл осы
+     * өрнекке (`translate(lower(...))`) үшграммалық GIN индексін қояды.
+     * Индекс пен сұраудың өрнегі бірдей болуы міндетті: сәл айырмашылық
+     * болса, жоспарлаушы индексті елемей, бүкіл кестені оқиды.
+     *
      * Назар аудар: сұрау `Prisma.sql` арқылы құрылып, `$queryRaw`-қа
-     * **аргумент** болып беріледі. Тегтелген шаблон түрінде жазсаң
-     * (`$queryRaw\`...\``), Prisma әр `${}`-ны параметр деп санайды да,
-     * ұя салынған SQL үзінділерін JSON-ға айналдырып жібереді. Қате сонда
-     * «оператор не существует: jsonb ~~ text» болып шығады.
+     * **аргумент** болып беріледі. Тегтелген шаблон түрінде жазсаң,
+     * Prisma әр `${}`-ны параметр деп санайды да, ұя салынған SQL
+     * үзінділерін JSON-ға айналдырып жібереді.
      */
-    const rows = await prisma.$queryRaw<SearchRow[]>(Prisma.sql`
+    const runKeyword = () => {
+      const wordConditions = words.map((word) => {
+        const pattern = `%${escapeLikePattern(word)}%`;
+        return Prisma.sql`(
+          ${folded('c."title"')} LIKE ${pattern} ESCAPE '\\'
+          OR ${folded('c."excerpt"')} LIKE ${pattern} ESCAPE '\\'
+          OR ${folded('c."content"')} LIKE ${pattern} ESCAPE '\\'
+        )`;
+      });
+
+      return prisma.$queryRaw<SearchRow[]>(Prisma.sql`
       SELECT
         c."id",
         c."title",
@@ -84,15 +92,65 @@ export async function GET(request: Request) {
       ORDER BY "titleHit" DESC, c."order" ASC
       LIMIT ${RESULT_LIMIT}
     `);
+    };
 
-    const results = rows.map((chapter) => {
+    // Мағыналық іздеу қосымша: құласа да, кілт сөз нәтижесі қалады
+    const semanticPromise = hasVectorSearch()
+      ? semanticSearch({ term, subjectId, limit: RESULT_LIMIT }).catch(() => [])
+      : Promise.resolve([]);
+
+    const [keywordRows, semanticHits] = await Promise.all([runKeyword(), semanticPromise]);
+
+    const seen = new Set(keywordRows.map((row) => row.id));
+    const extraIds = semanticHits
+      .filter((hit) => !seen.has(hit.chapterId))
+      .slice(0, RESULT_LIMIT)
+      .map((hit) => hit.chapterId);
+
+    let extraRows: SearchRow[] = [];
+    if (extraIds.length) {
+      const rows = await prisma.chapter.findMany({
+        where: { id: { in: extraIds }, isHidden: false, book: { isHidden: false, subjectId } },
+        select: {
+          id: true,
+          title: true,
+          excerpt: true,
+          content: true,
+          bookId: true,
+          book: { select: { title: true, subjectId: true } }
+        }
+      });
+
+      const order = new Map(extraIds.map((id, index) => [id, index]));
+      extraRows = rows
+        .sort((first, second) => (order.get(first.id) ?? 0) - (order.get(second.id) ?? 0))
+        .map((row) => ({
+          id: row.id,
+          title: row.title,
+          excerpt: row.excerpt,
+          content: row.content,
+          bookId: row.bookId,
+          bookTitle: row.book.title,
+          bookSubjectId: row.book.subjectId,
+          titleHit: false
+        }));
+    }
+
+    const semanticTextById = new Map(semanticHits.map((hit) => [hit.chapterId, hit.text]));
+
+    const results = [...keywordRows, ...extraRows].slice(0, RESULT_LIMIT).map((chapter) => {
       // Үзінді ең алдымен тақырып мәтінінен құрылады: `data-hit` нөмірлері оқу
-      // бетіндегі мәтінмен дәл сәйкес келуі керек. Мәтінде табылмаса ғана
-      // қысқаша сипаттама қосылады (ол жерде сөзге өту болмайды).
+      // бетіндегі мәтінмен дәл сәйкес келуі керек.
       const contentSnippet = buildHighlightedSearchSnippet(chapter.content, term);
-      const excerpt = contentSnippet.includes("<mark")
+      let excerpt = contentSnippet.includes("<mark")
         ? contentSnippet
         : buildHighlightedSearchSnippet(`${chapter.excerpt} ${chapter.content}`, term);
+
+      // Мағына бойынша ғана табылған тақырыпта сөз сөзбе-сөз кездеспеуі
+      // мүмкін — ондайда табылған бөліктің өзін көрсетеміз
+      if (!excerpt.includes("<mark") && semanticTextById.has(chapter.id)) {
+        excerpt = `${semanticTextById.get(chapter.id)!.slice(0, 220)}…`;
+      }
 
       return {
         id: `${chapter.bookId}-${chapter.id}`,
