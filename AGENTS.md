@@ -82,6 +82,11 @@ Operational notes:
 | [`_docs/team/pm.md`](_docs/team/pm.md) | You are acting as product manager |
 | [`_docs/team/software-engineer.md`](_docs/team/software-engineer.md) | You are implementing an issue |
 | [`_docs/team/qa-engineer.md`](_docs/team/qa-engineer.md) | You are verifying an issue |
+| [`_docs/team/ui-element-reviewer.md`](_docs/team/ui-element-reviewer.md) | You are checking a UI element before it ships |
+| [`_docs/team/frontend-ux-engineer.md`](_docs/team/frontend-ux-engineer.md) | You are building a student-facing surface |
+| [`_docs/team/data-model-architect.md`](_docs/team/data-model-architect.md) | You are changing a schema or writing a backfill |
+| [`_docs/team/api-performance-engineer.md`](_docs/team/api-performance-engineer.md) | You are changing a route handler, a payload or caching |
+| [`_docs/team/ai-integration-engineer.md`](_docs/team/ai-integration-engineer.md) | You are touching a model call, the question bank or search |
 | [`docs/dizayn-juyesi.md`](docs/dizayn-juyesi.md) | You are changing anything visual |
 | [`docs/kitap-talaptary.md`](docs/kitap-talaptary.md) | You are touching the textbook import pipeline |
 | [`openapi.yaml`](openapi.yaml) | You are changing any Arena API route — the contract test fails if the spec drifts |
@@ -120,7 +125,7 @@ Catalogue search is two systems answering the same query, merged.
 |---|---|
 | Letter folding (ә→а, қ→к, …) | [`lib/search-folding.ts`](lib/search-folding.ts) |
 | Chunking and content hashing | [`lib/search/chunking.ts`](lib/search/chunking.ts) |
-| Gemini embeddings | [`lib/search/embeddings.ts`](lib/search/embeddings.ts) |
+| Embeddings (Cloudflare BGE-M3 by default, Gemini optional) | [`lib/search/embeddings.ts`](lib/search/embeddings.ts) |
 | Index building and updating | [`lib/search/indexer.ts`](lib/search/indexer.ts) |
 | Vector query | [`lib/search/semantic.ts`](lib/search/semantic.ts) |
 | The endpoint that merges both | [`app/api/catalog/search/route.ts`](app/api/catalog/search/route.ts) |
@@ -139,12 +144,16 @@ replaces the other, so both run and the results are merged.
    a chapter is re-embedded only when its hash changes. A new book is picked up
    automatically by the nightly cron (`/api/cron/search-index`, `vercel.json`),
    and an admin edit re-indexes that one chapter immediately.
-3. **Semantic search must never break the page.** If Turso or the Gemini quota
-   is unavailable, `semanticSearch` returns an empty list and keyword results
-   stand on their own.
+3. **Semantic search must never break the page.** If Turso or the embedding
+   service is unavailable, `semanticSearch` returns an empty list and keyword
+   results stand on their own.
 4. **`scripts/search_text_index.mjs` must be run on a new database.** It creates
    the `pg_trgm` extension and the trigram indexes that keyword search needs.
    Run it with `--prod` against the deployed database too.
+5. **Backfill the vector index with `npm run search:index`,** not through the
+   nightly cron. The cron takes 120 chapters a run, so a cold index would need
+   days; the script has no time limit and reads the catalogue once. It is
+   resumable — rerunning it only embeds chapters whose hash changed.
 
 ### Known traps — search
 
@@ -154,6 +163,13 @@ replaces the other, so both run and the results are merged.
 - **Document and query embeddings are different.** `RETRIEVAL_DOCUMENT` and
   `RETRIEVAL_QUERY` produce different vectors for the same text. Mixing them up
   costs accuracy without any error.
+- **Switching the embedding service throws the index away.** Each model has its
+  own vector space and its own width (BGE-M3 is 1024, Gemini 768), so mixed
+  vectors would compare as noise. `ensureSearchSchema()` reads the width out of
+  the table's own DDL and the service out of `SearchMeta`; on a mismatch it drops
+  `SearchChunk` and rebuilds from zero. Expect a full re-embed after the switch.
+- **A chapter with no text still gets a state row.** Otherwise every run would
+  pick it up again and never finish.
 
 ---
 
