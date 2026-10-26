@@ -1,4 +1,5 @@
 import { createClient, type Client } from "@libsql/client";
+import { hasEmbeddingProvider } from "@/lib/search/embeddings";
 
 /**
  * Мағына бойынша іздеудің векторлық қоймасы.
@@ -16,8 +17,6 @@ import { createClient, type Client } from "@libsql/client";
  * бұл кестелер қауіпсіз.
  */
 
-/** Эмбеддингтің өлшемі. Gemini `outputDimensionality` арқылы қысқартады. */
-export const EMBEDDING_DIMENSIONS = 768;
 
 /** Векторлық индекстің аты — сұрауда сол арқылы шақырылады */
 export const VECTOR_INDEX = "SearchChunk_vector_idx";
@@ -39,7 +38,7 @@ function createSearchClient(): Client | null {
  * береді — бет құламауы керек.
  */
 export function hasVectorSearch(): boolean {
-  return Boolean(process.env.TURSO_DATABASE_URL?.trim());
+  return Boolean(process.env.TURSO_DATABASE_URL?.trim()) && hasEmbeddingProvider();
 }
 
 export function getSearchDb(): Client | null {

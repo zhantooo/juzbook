@@ -12,6 +12,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
+    "search:index": "tsx --env-file=.env --env-file=.env.local scripts/search_index_fill.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "arena:generate": "prisma generate --schema=prisma/arena.prisma",

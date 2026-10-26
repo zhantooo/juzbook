@@ -5,8 +5,16 @@ export type TopicRecord = {
   title: string;
   order: number;
   isHidden?: boolean;
-  content: string;
-  excerpt: string;
+  /**
+   * Тақырыптың мәтіні.
+   *
+   * Навигация жауабында болмайды: 2 282 тақырыптың мазмұны бірге
+   * тасымалданса, әр бет ашылғанда мегабайттап трафик кетеді. Ашық тұрған
+   * тақырыпты оқу беті өзі толтырады, ал басқа тақырыптың мәтіні керек
+   * болса, `/api/catalog/topics?ids=` арқылы алынады.
+   */
+  content?: string;
+  excerpt?: string;
   pdfPage?: number | null;
   bookId: string;
   sectionId: string;

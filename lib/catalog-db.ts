@@ -185,7 +185,6 @@ function mapNavigationBook(book: NavigationBookQueryRow, includeHidden = false):
     id: section.id,
     title: section.title,
     order: section.order,
-    isHidden: section.isHidden,
     bookId: book.id,
     chapters: [
       ...section.chapters
@@ -194,7 +193,6 @@ function mapNavigationBook(book: NavigationBookQueryRow, includeHidden = false):
         id: chapterGroup.id,
         title: chapterGroup.title,
         order: chapterGroup.order,
-        isHidden: chapterGroup.isHidden,
         bookId: book.id,
         sectionId: section.id,
         topics: chapterGroup.topics
@@ -202,14 +200,7 @@ function mapNavigationBook(book: NavigationBookQueryRow, includeHidden = false):
           .map((topic) => ({
           id: topic.id,
           title: topic.title,
-          // Навигацияда қысқаша мазмұн көрсетілмейді, ал ол жауаптың
-          // жартысына жуығын алып жатқан: 2 282 тақырыпта ~900 КБ.
-          // Оқу беті тақырыпты өз сұранысымен алады, сондықтан бос.
-          excerpt: "",
-          content: "",
-          pdfPage: topic.pdfPage,
           order: topic.order,
-          isHidden: topic.isHidden,
           bookId: book.id,
           sectionId: topic.sectionId ?? section.id,
           chapterGroupId: topic.sectionChapterId ?? chapterGroup.id
@@ -234,12 +225,7 @@ function mapNavigationBook(book: NavigationBookQueryRow, includeHidden = false):
             topics: directTopics.map((topic) => ({
               id: topic.id,
               title: topic.title,
-              // Навигацияда мазмұн жоқ — жоғарыдағы себеп
-              excerpt: "",
-              content: "",
-              pdfPage: topic.pdfPage,
               order: topic.order,
-              isHidden: topic.isHidden,
               bookId: book.id,
               sectionId: topic.sectionId ?? section.id,
               chapterGroupId: makeVirtualDirectChapterGroupId(section.id)
@@ -674,8 +660,8 @@ async function ensureDemoCatalogInDatabaseInternal() {
               where: { id: topic.id },
               update: {
                 title: topic.title,
-                excerpt: topic.excerpt,
-                content: topic.content,
+                excerpt: topic.excerpt ?? "",
+                content: topic.content ?? "",
                 order: topic.order,
                 bookId: book.id,
                 sectionId: section.id,
@@ -684,8 +670,8 @@ async function ensureDemoCatalogInDatabaseInternal() {
               create: {
                 id: topic.id,
                 title: topic.title,
-                excerpt: topic.excerpt,
-                content: topic.content,
+                excerpt: topic.excerpt ?? "",
+                content: topic.content ?? "",
                 order: topic.order,
                 bookId: book.id,
                 sectionId: section.id,

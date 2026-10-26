@@ -10,7 +10,8 @@ import { RichQuestionText } from "@/components/reader/rich-question-text";
 type TestTopic = {
   id: string;
   title: string;
-  content: string;
+  /** Навигация жауабында мәтін жоқ — тек ашық тұрған тақырыпта болады */
+  content?: string;
 };
 
 type GeneratedQuestion = {
@@ -190,6 +191,8 @@ export function TestGenerator({
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const completedSignatureRef = useRef("");
+  /** Сұраныммен алынған тақырып мәтіндері: қайта сұрамау үшін */
+  const topicTextRef = useRef(new Map<string, string>());
 
   const selectedTopics = useMemo(
     () => {
@@ -315,6 +318,52 @@ export function TestGenerator({
     setIsMinimized(true);
   }
 
+  /**
+   * ИИ-ге жіберілетін мәтінді жинайды.
+   *
+   * Навигация жауабында тақырыптың мәтіні жоқ: 2 282 тақырыптың мазмұны
+   * бірге тасымалданса, әр бет ашылғанда мегабайттап трафик кетеді. Ашық
+   * тұрған тақырыптың мәтіні бар, ал қалған таңдалғандары осы жерде бір
+   * сұранымда алынады.
+   */
+  async function buildTestText() {
+    const missing = selectedTopics.filter(
+      (topic) => !topic.content?.trim() && !topicTextRef.current.has(topic.id)
+    );
+
+    if (missing.length) {
+      try {
+        const response = await fetch(
+          `/api/catalog/topics?ids=${missing.map((topic) => encodeURIComponent(topic.id)).join(",")}`,
+          { credentials: "same-origin" }
+        );
+        const payload = (await response.json()) as { topics?: Array<{ id: string; content?: string }> };
+        for (const row of payload.topics ?? []) {
+          topicTextRef.current.set(row.id, row.content ?? "");
+        }
+      } catch {
+        // Алынбаса, төменде «мәтін жеткіліксіз» деген хабар шығады
+      }
+    }
+
+    const contents = selectedTopics.map(
+      (topic) => topic.content?.trim() || topicTextRef.current.get(topic.id) || ""
+    );
+
+    const prepared = selectedTopics
+      .map((topic, index) => `Тақырып ${index + 1}: ${topic.title}\n\n${prepareContentForTest(contents[index])}`)
+      .join("\n\n---\n\n");
+
+    const text =
+      prepared.length > MAX_TEST_TEXT_LENGTH
+        ? `${prepared.slice(0, MAX_TEST_TEXT_LENGTH)}\n\nМәтін көлемі тест дайындауға ыңғайлы болу үшін осы жерден ықшамдалды.`
+        : prepared;
+
+    // Ұзындық тақырып атауларымен өлшенбейді: мәтін алынбай қалса, атаулар
+    // жиыны 80 таңбадан асып кетіп, ИИ-ге мазмұнсыз сұраныс барып қалар еді.
+    return { text, contentLength: contents.join(" ").trim().length };
+  }
+
   async function generateTest() {
     if (!selectedTopics.length) {
       setError(language === "en" ? "Please choose a topic first." : "Алдымен тақырыпты таңдаңыз.");
@@ -323,23 +372,6 @@ export function TestGenerator({
 
     if (selectedTopics.length > MAX_SELECTED_TOPICS) {
       setError(language === "en" ? "Choose no more than 5 topics." : "Бірден ең көбі 5 тақырып таңдауға болады.");
-      return;
-    }
-
-    const preparedText = selectedTopics
-      .map((topic, index) => `Тақырып ${index + 1}: ${topic.title}\n\n${prepareContentForTest(topic.content)}`)
-      .join("\n\n---\n\n");
-    const text =
-      preparedText.length > MAX_TEST_TEXT_LENGTH
-        ? `${preparedText.slice(0, MAX_TEST_TEXT_LENGTH)}\n\nМәтін көлемі тест дайындауға ыңғайлы болу үшін осы жерден ықшамдалды.`
-        : preparedText;
-
-    if (text.length < 80) {
-      setError(
-        language === "en"
-          ? "The topic text is too short for test generation."
-          : "Тест құрастыру үшін тақырып мәтіні жеткілікті болуы керек."
-      );
       return;
     }
 
@@ -387,6 +419,18 @@ export function TestGenerator({
 
     // 2) Банк бос болса ғана ИИ-ден сұраймыз.
     try {
+      // Мәтін тек осы жолға керек: дайын банкті алуға тақырыптың идентификаторы жетеді
+      const { text, contentLength } = await buildTestText();
+
+      if (contentLength < 80) {
+        setError(
+          language === "en"
+            ? "The topic text is too short for test generation."
+            : "Тест құрастыру үшін тақырып мәтіні жеткілікті болуы керек."
+        );
+        return;
+      }
+
       const response = await fetch("/api/generate-test", {
         method: "POST",
         headers: {

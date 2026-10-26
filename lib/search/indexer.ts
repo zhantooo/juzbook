@@ -1,8 +1,8 @@
 import type { InValue } from "@libsql/client";
 import { prisma } from "@/lib/prisma";
 import { hashChapter, splitIntoChunks } from "@/lib/search/chunking";
-import { embedTexts } from "@/lib/search/embeddings";
-import { EMBEDDING_DIMENSIONS, VECTOR_INDEX, getSearchDb, toVectorText } from "@/lib/search/vector-db";
+import { embedTexts, getEmbeddingDimensions, getEmbeddingProvider } from "@/lib/search/embeddings";
+import { VECTOR_INDEX, getSearchDb, toVectorText } from "@/lib/search/vector-db";
 
 /**
  * Мағыналық іздеудің индексін құрады және жаңартып отырады.
@@ -15,6 +15,9 @@ import { EMBEDDING_DIMENSIONS, VECTOR_INDEX, getSearchDb, toVectorText } from "@
  * өзгереді де, индекстеуші сол тақырыпты ғана қайта эмбеддейді. Сондықтан
  * кітап қосылған сайын бүкіл банкті қайта құрудың қажеті жоқ.
  */
+
+/** Бір уақытта өңделетін тақырып саны */
+const INDEX_CONCURRENCY = 4;
 
 export type IndexProgress = {
   chapterId: string;
@@ -32,11 +35,58 @@ export type IndexResult = {
   pending: number;
 };
 
-/** Кестелер мен векторлық индекс. Қайта қосқанда барына тимейді. */
+/**
+ * Кестелер мен векторлық индекс.
+ *
+ * Эмбеддинг қызметі ауысса, ескі векторлар жарамсыз болады: әр модельдің
+ * векторы өз кеңістігінде тұрады да, арақашықтықты салыстыру мағынасын
+ * жоғалтады. Әрі өлшемі де басқа. Сондықтан қолданылған қызмет пен өлшем
+ * жазылып отырады: сәйкес келмесе, индекс толық тазаланып, нөлден құрылады.
+ * Бұл жай ғана қолайлылық емес — араласып кеткен индекс үнсіз жұмыс істейді
+ * де, нәтижесі мәнсіз болады.
+ */
 export async function ensureSearchSchema(): Promise<void> {
   const db = getSearchDb();
   if (!db) {
     throw new Error("TURSO_DATABASE_URL берілмеген.");
+  }
+
+  const provider = getEmbeddingProvider();
+  const dimensions = getEmbeddingDimensions();
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS SearchMeta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
+  );
+
+  const meta = await db.execute("SELECT key, value FROM SearchMeta");
+  const stored = new Map(meta.rows.map((row) => [String(row.key), String(row.value)]));
+
+  /**
+   * Кестенің өз сипаттамасынан өлшемді оқимыз.
+   *
+   * Мета-жазбаға ғана сенуге болмайды: кесте бұрын жазба қоймай құрылған
+   * болуы мүмкін. Ал `F32_BLOB(768)` деп жарияланған бағанға 1024 өлшемді
+   * вектор жазылмайды — қате кеш шығады.
+   */
+  const ddl = await db.execute(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'SearchChunk'"
+  );
+  const declared = /F32_BLOB\s*\(\s*(\d+)\s*\)/i.exec(String(ddl.rows[0]?.sql ?? ""))?.[1];
+
+  const changed =
+    (declared !== undefined && declared !== String(dimensions)) ||
+    (stored.size > 0 &&
+      (stored.get("provider") !== provider || stored.get("dimensions") !== String(dimensions)));
+
+  if (changed) {
+    await db.batch(
+      [
+        `DROP INDEX IF EXISTS ${VECTOR_INDEX}`,
+        "DROP TABLE IF EXISTS SearchChunk",
+        "DROP TABLE IF EXISTS SearchChapterState"
+      ],
+      "write"
+    );
   }
 
   await db.batch(
@@ -48,7 +98,7 @@ export async function ensureSearchSchema(): Promise<void> {
         subjectId TEXT NOT NULL,
         position INTEGER NOT NULL,
         text TEXT NOT NULL,
-        embedding F32_BLOB(${EMBEDDING_DIMENSIONS}) NOT NULL
+        embedding F32_BLOB(${dimensions}) NOT NULL
       )`,
       `CREATE INDEX IF NOT EXISTS SearchChunk_chapter_idx ON SearchChunk(chapterId)`,
       `CREATE INDEX IF NOT EXISTS SearchChunk_subject_idx ON SearchChunk(subjectId)`,
@@ -59,6 +109,14 @@ export async function ensureSearchSchema(): Promise<void> {
         chunkCount INTEGER NOT NULL,
         indexedAt TEXT NOT NULL
       )`
+    ],
+    "write"
+  );
+
+  await db.batch(
+    [
+      { sql: "INSERT INTO SearchMeta (key, value) VALUES ('provider', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", args: [provider] },
+      { sql: "INSERT INTO SearchMeta (key, value) VALUES ('dimensions', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", args: [String(dimensions)] }
     ],
     "write"
   );
@@ -198,7 +256,20 @@ export async function runIndexing(options: {
   let indexed = 0;
   let chunks = 0;
 
-  for (const chapter of batch) {
+  /**
+   * Тақырыптар қатар өңделеді.
+   *
+   * Бір тақырыпқа екі желілік сапар кетеді: бірі эмбеддеуге, екіншісі
+   * Turso-ға жазуға. Екісі де күтуден тұрады, есептеуден емес, сондықтан
+   * реттілікпен жүргенде уақыттың басы босқа кетеді. Төртеуін қатар
+   * жібергенде бүкіл каталог сағаттардың орнына бірден аз уақытта бітеді.
+   *
+   * Артық қатардың қажеті жоқ: тегін Workers AI шектеуі бар, артық қыссаң
+   * 429 қайтарады да, қайта күтуге кеткен уақыт үнемделгенін жоқ қылады.
+   */
+  let cursor = 0;
+
+  async function processOne(chapter: ChapterRow) {
     const pieces = splitIntoChunks(chapter.title, chapter.content);
     const hash = hashChapter(chapter.title, chapter.content);
 
@@ -206,7 +277,7 @@ export async function runIndexing(options: {
       // Мазмұны бос тақырып та белгіленеді, әйтпесе әр жүгірісте қайта келеді
       await writeChapter(chapter, [], [], hash);
       indexed += 1;
-      continue;
+      return;
     }
 
     const texts = pieces.map((piece) => piece.text);
@@ -223,6 +294,21 @@ export async function runIndexing(options: {
       total: batch.length
     });
   }
+
+  async function worker() {
+    for (;;) {
+      const chapter = batch[cursor];
+      cursor += 1;
+      if (!chapter) {
+        return;
+      }
+      await processOne(chapter);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(INDEX_CONCURRENCY, batch.length) }, () => worker())
+  );
 
   const removed = prune ? await pruneRemoved(visibleIds) : 0;
 
