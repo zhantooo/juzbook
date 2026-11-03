@@ -1,0 +1,10 @@
+# Контейнерге кіретін файлдар әрқашан LF-пен сақталады.
+#
+# Windows-та тексерілген shell скрипті CRLF-пен жазылса, Linux контейнерінің
+# ішінде іске қосылмайды: ядро жолдың соңындағы \r таңбасын интерпретатор
+# атының бөлігі деп оқиды да, «no such file or directory» деген шатастыратын
+# қате береді. Файлдың өзі орнында тұрғанымен.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+.dockerignore text eol=lf
