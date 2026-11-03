@@ -1,0 +1,43 @@
+# Docker құрастыру контексіне кірмейтін нәрселер.
+#
+# МАҢЫЗДЫ: .env файлдары осында аталуы міндетті. Әйтпесе нағыз кілттер
+# (Gemini, Turso, R2, Postgres) образдың қабатына жазылып қалады да,
+# образды берген адамның бәрі оларды оқи алады.
+#
+# storage/ мен public/books/ — авторлық құқықпен қорғалған оқулық мазмұны.
+# Олар репозиторийге де салынбайды, образға да салынбауы керек.
+
+.git
+.github
+node_modules
+.next
+.next-check
+generated
+out
+build
+
+.env
+.env.*
+!.env.example
+
+storage
+public/books
+
+*.db
+*.db-journal
+prisma/arena-test.db
+
+_docs
+docs
+roles
+*.md
+!README.md
+
+.vscode
+.idea
+.claude
+npm-debug.log*
+tsconfig.tsbuildinfo
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,65 @@
+# JUZBOOK — қосымша мен дерекқор бір стекте.
+#
+# Іске қосу:  docker compose up --build
+# Ашу:        http://localhost:3000
+#
+# НАЗАР АУДАР: бұл стек өндірістік нұсқаны алмастырмайды. Ол бос дерекқормен
+# көтеріледі — каталог та, сұрақ банкі де, іздеу индексі де бос болады.
+# Оқулық суреттері авторлық құқықпен қорғалғандықтан образға салынбайды;
+# NEXT_PUBLIC_BOOKS_BLOB_HOST берілсе ғана сыртқы қоймадан көрінеді.
+# Себептері #98-де жазылған.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: juzbook
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      # Хостта 5433: әзірлеушінің машинасында 5432-де өз Postgres-і тұруы мүмкін.
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d juzbook"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Контейнер ішінен дерекқор «db» деген атпен көрінеді.
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/juzbook?schema=public"
+      DATABASE_URL_POOLED: "postgresql://postgres:postgres@db:5432/juzbook?schema=public&connection_limit=20&pool_timeout=30"
+      # Arena жергілікті SQLite файлында қалады (тұрақты том).
+      ARENA_DATABASE_URL: "file:/app/data/arena.db"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+      # Бұл — жергілікті стектің құпиясы, өндірістікі емес.
+      JUZBOOK_SESSION_SECRET: "juzbook-docker-local-secret"
+      # Қосымша кілттер: хост ортасында болса беріледі, болмаса бос.
+      # Бос болса, ИИ-ге қатысты мүмкіндіктер ғана істемейді.
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      NEXT_PUBLIC_BOOKS_BLOB_HOST: "${NEXT_PUBLIC_BOOKS_BLOB_HOST:-}"
+    ports:
+      - "3000:3000"
+    volumes:
+      - arena-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+volumes:
+  db-data:
+  arena-data:
