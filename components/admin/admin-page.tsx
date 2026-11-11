@@ -70,6 +70,28 @@ function isVirtualDirectChapterGroupId(chapterGroupId: string) {
   return chapterGroupId.startsWith(VIRTUAL_DIRECT_CHAPTER_PREFIX);
 }
 
+/**
+ * Бөлімде жалғыз тарау тұрса әрі оның атауы бөлімнің атауымен бірдей болса,
+ * ол тарау — импорт құбыры қалдырған артық қабат.
+ *
+ * Оқу беті ондай тарауды әлдеқашан жасырып, тақырыптарды бөлімнің астына
+ * тікелей көрсетеді (`reader-workspace.tsx`, `isRedundantGroup`). Әкімші
+ * панелінде ол көрініп тұратын да, бір атау екі рет қайталанатын. Енді екі
+ * жерде бірдей.
+ *
+ * Дерекқордағы жазба өшірілмейді: тақырыптар бөлімге тікелей көшірілсе,
+ * маппер оларға «Тақырыптар» деген виртуал тарау жасайды да, оқу бетінде
+ * керісінше ЖАҢА қабат пайда болар еді.
+ */
+function isRedundantChapterGroup(section: { title: string; chapters: { title: string }[] }) {
+  if (section.chapters.length !== 1) {
+    return false;
+  }
+
+  const normalise = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+  return normalise(section.chapters[0].title) === normalise(section.title);
+}
+
 type ModalState =
   | { type: "subject-create" | "subject-edit"; subjectId?: string }
   | { type: "book-create" | "book-edit"; subjectId: string; bookId?: string }
@@ -1022,6 +1044,8 @@ export function AdminPage() {
                                     draggedCatalogItem?.type === "chapter-group" && draggedCatalogItem.id === chapterGroup.id ? "opacity-60 ring-2 ring-emerald-300" : ""
                                   } ${getCatalogDropClasses({ type: "chapter-group", id: chapterGroup.id })}`}
                                 >
+                                  {/* Атауы бөлімнің атауымен бірдей болса, тарау жолағы көрсетілмейді. */}
+                                  {isRedundantChapterGroup(section) ? null : (
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     <div className="flex items-start gap-3">
                                       <button
@@ -1140,7 +1164,11 @@ export function AdminPage() {
                                     </div>
                                   </div>
 
-                                  {!isChapterGroupCollapsed(chapterGroup.id) ? <div className="mt-4 space-y-2">
+                                  )}
+
+                                  {/* Тарау жолағы жасырылса, оны жинақтайтын батырма да жоқ —
+                                      сондықтан тақырыптар әрқашан көрінеді. */}
+                                  {isRedundantChapterGroup(section) || !isChapterGroupCollapsed(chapterGroup.id) ? <div className="mt-4 space-y-2">
                                     {chapterGroup.topics.map((topic) => (
                                       <div
                                         key={topic.id}
