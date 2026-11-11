@@ -136,7 +136,11 @@ function mapBook(book: BookQueryRow, includeHidden = false): BookRecord {
         return [
           {
             id: makeVirtualDirectChapterGroupId(section.id),
-            title: "Тақырыптар",
+            // Атауы бөлімнікімен бірдей: сонда оқу беті де, әкімші панелі де
+            // мұны артық қабат деп танып, жолақты көрсетпейді де, тақырыптар
+            // бөлімнің астында тікелей тұрады. Бұрын «Тақырыптар» деп
+            // жазылатын да, қосымша деңгей болып көрінетін.
+            title: section.title,
             order: Math.max(0, ...section.chapters.map((chapterGroup) => chapterGroup.order)) + 1,
             bookId: book.id,
             sectionId: section.id,
@@ -218,7 +222,11 @@ function mapNavigationBook(book: NavigationBookQueryRow, includeHidden = false):
         return [
           {
             id: makeVirtualDirectChapterGroupId(section.id),
-            title: "Тақырыптар",
+            // Атауы бөлімнікімен бірдей: сонда оқу беті де, әкімші панелі де
+            // мұны артық қабат деп танып, жолақты көрсетпейді де, тақырыптар
+            // бөлімнің астында тікелей тұрады. Бұрын «Тақырыптар» деп
+            // жазылатын да, қосымша деңгей болып көрінетін.
+            title: section.title,
             order: Math.max(0, ...section.chapters.map((chapterGroup) => chapterGroup.order)) + 1,
             bookId: book.id,
             sectionId: section.id,
