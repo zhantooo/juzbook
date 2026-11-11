@@ -1971,6 +1971,14 @@ function TopicForm({
   const [pdfPage, setPdfPage] = useState(initialPdfPage ? String(initialPdfPage) : "");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isContentLoading, setIsContentLoading] = useState(false);
+  /**
+   * «Бастапқы нұсқаға қайтару» үшін базадағы мәтін.
+   *
+   * Каталог навигация нұсқасымен келетіндіктен `originalContent` пропы бос
+   * болуы мүмкін. Ондайда серверден бөлек жүктелген мәтінді негіз етеміз —
+   * әйтпесе батырма мазмұнды бос жолмен ауыстырып жіберер еді.
+   */
+  const [loadedOriginalContent, setLoadedOriginalContent] = useState("");
   const editorRef = useRef<ChapterEditorHandle | null>(null);
 
   // Каталог клиентке мәтінсіз жүктелуі мүмкін (навигация нұсқасы), сондықтан
@@ -1992,6 +2000,7 @@ function TopicForm({
         const loaded = typeof payload.topic.content === "string" ? payload.topic.content : "";
         if (loaded) {
           setContent(loaded);
+          setLoadedOriginalContent(loaded);
         }
       })
       .catch(() => undefined)
@@ -2070,7 +2079,12 @@ function TopicForm({
                   onClick={() => {
                     setTitle(originalTitle || "");
                     setExcerpt(originalExcerpt || "");
-                    setContent(originalContent || "");
+                    // Пропта мәтін болмаса (навигация нұсқасы), серверден
+                    // жүктелгенін қолданамыз да, бос жолмен ауыстырмаймыз.
+                    const fallbackContent = originalContent || loadedOriginalContent;
+                    if (fallbackContent) {
+                      setContent(fallbackContent);
+                    }
                   }}
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-300"
                 >

@@ -339,10 +339,18 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
 
   async function refreshCatalog() {
     try {
-      // Тек әкімші панелі тақырып мәтіндерімен жұмыс істейді. Қалған беттерге
-      // навигация ғана керек — толық каталог 12 МБ, навигация нұсқасы ~40 КБ.
+      /**
+       * Әкімшіге де навигация нұсқасы жіберіледі, тек жасырылғандарымен бірге.
+       *
+       * Бұрын әкімші толық каталогты сұрайтын — 2300 тақырыптың мәтінімен
+       * бірге 20 МБ (gzip-тен кейін 7,3 МБ). Тақырыпты сақтаған сайын кэш
+       * тазаланатындықтан, сол 20 МБ қайта жүктелетін де, кітаптар бір
+       * минуттай жоғалып тұратын. Ал түзетуге ашылған тақырыптың мәтінін
+       * әкімші панелі `/api/admin/topics/<id>` арқылы бөлек алады —
+       * каталогтағы мәтін оған керек емес еді.
+       */
       const isAdminView = typeof window !== "undefined" && window.location.pathname.startsWith("/admin");
-      const response = await fetch(`/api/catalog${isAdminView ? "?includeHidden=1" : "?view=navigation"}`, {
+      const response = await fetch(`/api/catalog?view=navigation${isAdminView ? "&includeHidden=1" : ""}`, {
         cache: "no-store"
       });
 

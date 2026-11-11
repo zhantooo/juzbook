@@ -451,8 +451,23 @@ const getCatalogNavigationFromDatabaseCached = unstable_cache(
   }
 );
 
-export async function getCatalogNavigationFromDatabase(): Promise<SubjectRecord[]> {
-  return getCatalogNavigationFromDatabaseCached();
+/**
+ * Әкімшіге арналған навигация: жасырылған пәндер мен тақырыптар да кіреді.
+ *
+ * Бөлек кэш кілті әдейі: оқушының нұсқасымен бір кілтте тұрса, біреуінің
+ * жауабы екіншісіне беріліп, жасырылған мазмұн оқушыға көрініп кетер еді.
+ */
+const getAdminCatalogNavigationCached = unstable_cache(
+  async () => getCatalogNavigationFromDatabaseUncached(true),
+  ["catalog-navigation-admin"],
+  {
+    revalidate: 3600,
+    tags: ["catalog", "catalog-navigation"]
+  }
+);
+
+export async function getCatalogNavigationFromDatabase(includeHidden = false): Promise<SubjectRecord[]> {
+  return includeHidden ? getAdminCatalogNavigationCached() : getCatalogNavigationFromDatabaseCached();
 }
 
 /// Оқу беті үшін бір ғана тақырып пен оның навигациясын бір сұраныспен аламыз.

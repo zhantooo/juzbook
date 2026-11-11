@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { getCatalogFromDatabase, getCatalogNavigationFromDatabase } from "@/lib/catalog-db";
+import { getCurrentUserFromRequest } from "@/lib/security/auth";
 
 export const runtime = "nodejs";
 
@@ -49,11 +50,37 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const view = searchParams.get("view");
-    const includeHidden = searchParams.get("includeHidden") === "1";
-    const subjects =
-      view === "navigation"
-        ? await getCatalogNavigationFromDatabase()
-        : await getCatalogFromDatabase(includeHidden);
+    /**
+     * `includeHidden` тек әкімшіге беріледі.
+     *
+     * Бұл маршрут middleware-дің matcher-іне кірмейді (`/admin`, `/profile`,
+     * `/books` ғана), әрі өз ішінде тексеру жоқ еді — яғни кез келген адам
+     * `?includeHidden=1` сұрап, жасырылған пәндер мен тақырыптарды ала
+     * алатын. Рөлі жетпесе, жалауды елемей, жария нұсқаны береміз:
+     * қате қайтарсақ, әлі жүктеліп үлгермеген клиенттің каталогы бос
+     * қалып қалар еді.
+     */
+    const requestedHidden = searchParams.get("includeHidden") === "1";
+    let includeHidden = false;
+    if (requestedHidden) {
+      const user = await getCurrentUserFromRequest(request);
+      includeHidden = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+    }
+
+    /**
+     * Толық каталог (тақырып мәтіндерімен бірге) — 20 МБ. Оны қолданбаның
+     * бірде-бір беті сұрамайды: әкімші панелі де навигация нұсқасымен
+     * жұмыс істейді, ал мәтінді `/api/admin/topics/<id>` арқылы бөлек
+     * алады. Сондықтан рөлі жетпегенге жеңіл нұсқа беріледі — қате емес,
+     * әйтпесе ескі клиент бос каталогпен қалар еді.
+     *
+     * `view=navigation` әкімшіге де қолжетімді: сонда жасырылғандары да
+     * кіреді, бірақ ауыр мәтін жіберілмейді.
+     */
+    const wantsFullCatalog = view !== "navigation" && includeHidden;
+    const subjects = wantsFullCatalog
+      ? await getCatalogFromDatabase(true)
+      : await getCatalogNavigationFromDatabase(includeHidden);
 
     return buildResponse(request, { subjects });
   } catch (error) {
