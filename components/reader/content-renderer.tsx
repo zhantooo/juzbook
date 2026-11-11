@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { AlertTriangle, BookType } from "lucide-react";
 import type { HighlightRecord } from "@/lib/types";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { cropStyles, parseCrop } from "@/lib/image-crop";
 
 type TermImageAlign = "top" | "left" | "right";
 type TermSurface = "default" | "white" | "transparent";
@@ -840,6 +841,37 @@ function normalizeReaderHtml(html: string) {
       const alignment = getImageAlignmentFromHtml(attributes);
 
       attributes = upsertHtmlAttribute(attributes, "data-align", alignment);
+
+      /**
+       * Қиылған сурет. Жаңа файл жасалмайды: түпнұсқа орнында қалады да,
+       * тек көрінетін бөлігі орауышпен шектеледі (`lib/image-crop.ts`).
+       * Сондықтан қию кейін қайта реттелуі де, алынып тасталуы да мүмкін.
+       */
+      const crop = parseCrop(attributes.match(/data-juz-crop="([^"]*)"/i)?.[1]);
+
+      if (crop) {
+        const styles = cropStyles(crop);
+        // Суреттің өз ені орауышқа қатысты есептелгендіктен, мазмұндағы ескі
+        // ен/биіктік ережелері алынып тасталады — әйтпесе қию дәл келмейді.
+        const kept = /style="/i.test(attributes)
+          ? dropStyleProperties(attributes.match(/style="([^"]*)"/i)?.[1] ?? "", [
+              "width",
+              "max-width",
+              "height",
+              "min-width",
+              "object-fit",
+              "margin",
+              "margin-left",
+              "margin-right",
+              "margin-top",
+              "margin-bottom",
+              "display"
+            ])
+          : "";
+        const withoutStyle = attributes.replace(/\sstyle="[^"]*"/i, "");
+        const imageTag = `<img${withoutStyle} style="${escapeAttribute(`${kept};${styles.image}`)}">`;
+        return `<span data-juz-cropped="true" style="${escapeAttribute(styles.wrapper)}">${imageTag}</span>`;
+      }
 
       if (/style="/i.test(attributes)) {
         attributes = attributes.replace(/style="([^"]*)"/i, (_styleMatch: string, styleValue: string) => {

@@ -9,6 +9,7 @@ import {
   Bold,
   BookType,
   Crop,
+  RotateCcw,
   ImagePlus,
   Italic,
   Link2,
@@ -26,6 +27,7 @@ import {
   Undo2
 } from "lucide-react";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { CROP_ATTRIBUTE, formatCrop, parseCrop } from "@/lib/image-crop";
 
 type CommandName = "bold" | "italic" | "subscript" | "superscript";
 type DangerColor = "red" | "yellow" | "blue" | "green" | "violet";
@@ -1370,6 +1372,24 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     image.style.width = `min(100%, ${width}px)`;
     image.style.height = height ? `${height}px` : "auto";
     image.style.objectFit = height ? "contain" : "";
+
+    /**
+     * Редактордағы қиюдың көрінісі.
+     *
+     * Мұнда `clip-path` қолданылады, ал оқу бетінде — орауыш пен теріс жиек
+     * (`lib/image-crop.ts`). Себебі редактор ядросы суреттің айналасына
+     * қосымша түйін қосуға жол бермейді. Айырмасы: `clip-path` қиылған
+     * аумақтың орнын босатпайды, сондықтан редакторда сурет бұрынғы
+     * орнында тұрады да, тек қажетті бөлігі көрінеді. Нақты қалай
+     * орналасатынын «Алдын ала қарау» көрсетеді.
+     */
+    const crop = parseCrop(image.getAttribute(CROP_ATTRIBUTE));
+    if (crop) {
+      const percent = (value: number) => `${Number((value * 100).toFixed(4))}%`;
+      image.style.clipPath = `inset(${percent(crop.top)} ${percent(crop.right)} ${percent(crop.bottom)} ${percent(crop.left)})`;
+    } else {
+      image.style.clipPath = "";
+    }
     image.style.float = align === "left" ? "left" : align === "right" ? "right" : "none";
     image.style.display = align === "center" ? "block" : "inline-block";
     image.style.clear = align === "center" ? "both" : "none";
@@ -2405,47 +2425,6 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
   }
 
   /** Қиылған суретті файл етіп сақтайды; сәтсіз болса, data-URL күйінде қалады */
-  /**
-   * Қиылған суретті серверге жүктейді.
-   *
-   * Қате болса — лақтырады, жұтпайды. Бұрын кез келген сәтсіздікте `null`
-   * қайтаратын да, шақырушы оның орнына суретті data-URL күйінде мәтінге
-   * жазатын. Ол мәтін сақтау шегінен (600 000 таңба) асып кететіндіктен
-   * сақтау мүлде өтпей, әкімшінің көзіне сурет «жоғалып кеткендей»
-   * көрінетін. Енді нақты себебі айтылады да, мазмұн бүлінбейді.
-   */
-  async function uploadEditedImage(dataUrl: string) {
-    let response: Response;
-    try {
-      response = await fetch("/api/admin/images", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataUrl })
-      });
-    } catch {
-      throw new Error("Серверге жеткізілмеді. Байланысты тексеріп, қайта көріңіз.");
-    }
-
-    if (!response.ok) {
-      let reason = "";
-      try {
-        const payload = (await response.json()) as { error?: string };
-        reason = typeof payload.error === "string" ? payload.error : "";
-      } catch {
-        reason = "";
-      }
-      throw new Error(reason || `Суретті сақтау мүмкін болмады (${response.status}).`);
-    }
-
-    const payload = (await response.json()) as { url?: string };
-    if (typeof payload.url !== "string" || !payload.url) {
-      throw new Error("Сервер суреттің сілтемесін қайтармады.");
-    }
-
-    return payload.url;
-  }
-
   async function applyCrop() {
     const image = getActiveSelectedImage();
     if (!image || !cropState) {
@@ -2457,28 +2436,34 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
 
     try {
       const source = await loadImageElement(cropState.src);
-      const sourceX = Math.round(cropRect.x * source.naturalWidth);
-      const sourceY = Math.round(cropRect.y * source.naturalHeight);
-      const sourceWidth = Math.max(1, Math.round(cropRect.width * source.naturalWidth));
-      const sourceHeight = Math.max(1, Math.round(cropRect.height * source.naturalHeight));
-
-      const canvas = document.createElement("canvas");
-      canvas.width = sourceWidth;
-      canvas.height = sourceHeight;
-      const context = canvas.getContext("2d");
-
-      if (!context) {
-        throw new Error("Қию мүмкін болмады.");
+      if (!source.naturalWidth || !source.naturalHeight) {
+        throw new Error("Суреттің өлшемін анықтау мүмкін болмады.");
       }
 
-      context.drawImage(source, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
-      const dataUrl = canvas.toDataURL("image/png");
-      // Жүктеу сәтсіз болса, бұл жол лақтырады да, сурет мүлде өзгермейді.
-      // Бұрын мұнда data-URL-ға шегінетін де, мазмұн жарамсыз болып қалатын.
-      const uploaded = await uploadEditedImage(dataUrl);
+      /**
+       * Қию жаңа файл жасамайды.
+       *
+       * Бұрын мұнда сурет canvas арқылы қайта сызылып, жаңа файл болып
+       * жүктелетін. Ол екі себептен жұмыс істемейтін: файл `public/uploads`
+       * ішіне жазылатын, ал ол қалта gitignore-да әрі Vercel-дің файл жүйесі
+       * жазуға жабық. Енді түпнұсқа орнында қалады да, тек көрінетін бөлігі
+       * жазылады (`lib/image-crop.ts`). Сондықтан қиюды кейін қайта реттеуге
+       * немесе мүлде алып тастауға болады, әрі қойма кілті қажет емес.
+       */
+      const crop = {
+        left: cropRect.x,
+        top: cropRect.y,
+        right: Math.max(0, 1 - (cropRect.x + cropRect.width)),
+        bottom: Math.max(0, 1 - (cropRect.y + cropRect.height)),
+        ratio: source.naturalHeight / source.naturalWidth
+      };
 
-      image.src = uploaded;
-      image.removeAttribute("srcset");
+      const value = formatCrop(crop);
+      if (!parseCrop(value)) {
+        throw new Error("Қиылатын аумақ тым кішкентай немесе тым үлкен.");
+      }
+
+      image.setAttribute(CROP_ATTRIBUTE, value);
       // Қиылған соң биіктік бұрынғы суреттікі болып қалмауы керек
       setImageHeight("");
       applySelectedImageAttributes(image, {
@@ -2493,6 +2478,22 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     } finally {
       setIsCropSaving(false);
     }
+  }
+
+  /** Қиюды алып тастайды — түпнұсқа сурет толық күйінде қайтады. */
+  function clearCrop() {
+    const image = getActiveSelectedImage();
+    if (!image || !image.hasAttribute(CROP_ATTRIBUTE)) {
+      return;
+    }
+
+    image.removeAttribute(CROP_ATTRIBUTE);
+    applySelectedImageAttributes(image, {
+      width: imageWidth || "220",
+      height: imageHeight,
+      align: imageAlign,
+      caption: imageCaption
+    });
   }
 
   function removeSelectedImage() {
@@ -4005,6 +4006,14 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
               className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50 dark:border-cyan-500/40 dark:text-cyan-300 dark:hover:bg-cyan-500/10"
             >
               <Crop className="h-4 w-4" /> Қию
+            </button>
+            <button
+              type="button"
+              onClick={clearCrop}
+              title="Қиюды алып тастап, суретті толық күйіне қайтарады"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <RotateCcw className="h-4 w-4" /> Қиюды қайтару
             </button>
             <button
               type="button"
