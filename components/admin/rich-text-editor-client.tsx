@@ -1347,7 +1347,20 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
   }, []);
 
   function normalizeImageElement(image: HTMLImageElement) {
-    const width = Math.max(30, Number(image.dataset.width) || 220);
+    /**
+     * Ені жазылмаған сурет 220 пиксельге КІШІРЕЙТІЛМЕЙДІ.
+     *
+     * Бұрын мұнда әдепкі мән 220 болатын. Импорт құбыры қойған суреттерде
+     * `data-width` болмайды, сондықтан олар редакторда бірден 220-ге
+     * қысылып көрінетін — оқу бетінде мүлде басқаша (ол ен жазылмаса
+     * суретті өз өлшемімен көрсетеді). Әкімші бірдеңе өзгерткен сәтте сол
+     * 220 атрибутқа жазылып, сурет шынымен кішірейіп қалатын.
+     *
+     * Енді ен тек ЖАЗЫЛҒАН болса қолданылады, әйтпесе сурет өз өлшемінде
+     * қалады — екі жақта да бірдей көрінеді.
+     */
+    const storedWidth = Number(image.dataset.width);
+    const width = Number.isFinite(storedWidth) && storedWidth > 0 ? Math.max(30, storedWidth) : 0;
     const height = Math.max(0, Number(image.dataset.height) || 0);
     const align = (image.dataset.align as ContentImageAlign | undefined) || "center";
     const figure = image.closest("figure") as HTMLElement | null;
@@ -1369,7 +1382,8 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
           ? "max-w-full h-auto rounded-xl my-3 ml-4 shadow-md"
           : "max-w-full h-auto rounded-xl mx-auto my-4 shadow-md";
     image.setAttribute("alt", caption.trim());
-    image.style.width = `min(100%, ${width}px)`;
+    // Ен жазылмаса — суреттің өз өлшемі қалады (оқу бетіндегідей).
+    image.style.width = width ? `min(100%, ${width}px)` : "";
     image.style.height = height ? `${height}px` : "auto";
     image.style.objectFit = height ? "contain" : "";
 
@@ -1460,7 +1474,9 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     figure?.classList.add("ring-2", "ring-sky-300", "ring-offset-2", "ring-offset-white", "dark:ring-cyan-300", "dark:ring-offset-zinc-950");
     selectedImageRef.current = image;
     selectedImageIdRef.current = image.dataset.juzImageId || figure?.dataset.juzImageId || null;
-    setImageWidth(image.dataset.width || "220");
+    // Бос қалдырылады: ені жазылмаған сурет өз өлшемінде тұр, оны «220» деп
+    // көрсетсек, әкімші ештеңе өзгертпей «Қолдану» басқанда кішірейіп кетер еді.
+    setImageWidth(image.dataset.width || "");
     setImageHeight(image.dataset.height || "");
     setImageAlign((image.dataset.align as ContentImageAlign) || "center");
     setImageCaption(image.dataset.caption || image.closest("figure")?.querySelector("figcaption")?.textContent || "");
@@ -2298,7 +2314,14 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     const imageId = image.dataset.juzImageId || figure?.dataset.juzImageId || createEditorImageId();
 
     image.dataset.juzImageId = imageId;
-    image.dataset.width = next.width.trim() || "220";
+    // Ен берілмесе, атрибут МҮЛДЕ жазылмайды. Бұрын мұнда «220» жазылатын
+    // да, ені белгіленбеген сурет бір тигеннен кейін кішірейіп қалатын.
+    const nextWidth = next.width.trim();
+    if (nextWidth) {
+      image.dataset.width = nextWidth;
+    } else {
+      delete image.dataset.width;
+    }
     image.dataset.height = next.height.trim();
     image.dataset.align = next.align;
     image.dataset.caption = next.caption.trim();
@@ -2306,7 +2329,12 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
 
     if (figure) {
       figure.dataset.juzImageId = imageId;
-      figure.dataset.width = image.dataset.width;
+      // `undefined` берсек, атрибутқа «undefined» деген жол жазылып қалады.
+      if (image.dataset.width) {
+        figure.dataset.width = image.dataset.width;
+      } else {
+        delete figure.dataset.width;
+      }
       figure.dataset.height = image.dataset.height;
       figure.dataset.align = image.dataset.align;
       figure.dataset.caption = image.dataset.caption;
@@ -2467,7 +2495,7 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
       // Қиылған соң биіктік бұрынғы суреттікі болып қалмауы керек
       setImageHeight("");
       applySelectedImageAttributes(image, {
-        width: imageWidth || "220",
+        width: imageWidth,
         height: "",
         align: imageAlign,
         caption: imageCaption
@@ -2489,7 +2517,7 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
 
     image.removeAttribute(CROP_ATTRIBUTE);
     applySelectedImageAttributes(image, {
-      width: imageWidth || "220",
+      width: imageWidth,
       height: imageHeight,
       align: imageAlign,
       caption: imageCaption
@@ -3954,7 +3982,8 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
                 setImageWidth(nextValue);
                 patchSelectedImage({ width: nextValue });
               }}
-              placeholder="Ені"
+              placeholder="Ені — бос болса, өз өлшемі"
+              title="Бос қалдырсаңыз, сурет түпнұсқа өлшемінде көрінеді"
               className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-cyan-500/50"
             />
             <input
