@@ -46,7 +46,24 @@ async function ChapterPageContent({ bookId, chapterId }: { bookId: string; chapt
 
   const activeTopic = readerPayload.chapters[0];
   const activeTopicSavedAt = formatTopicUpdatedAt(activeTopic.updatedAt);
-  const hydratedSubjects: SubjectRecord[] = subjects.map((subject) => ({
+
+  /**
+   * Серверден тек ашылып тұрған кітап жіберіледі, бүкіл каталог емес.
+   *
+   * Бұрын барлық 62 кітаптың ағашы әр оқу бетінің HTML-іне салынатын —
+   * 532 КБ JSON. Оның клиентке керегі екеу ғана: бірінші көріністі салу
+   * және ағымдағы тақырыптың мәтінін жеткізу. Екеуі де бір кітаппен
+   * шешіледі, ал қалған каталогты клиент `catalog` контексі арқылы бөлек
+   * әрі кэштелген күйде жүктейді (`isReady` болғанда соған ауысады).
+   */
+  const activeSubjects = subjects
+    .map((subject) => ({
+      ...subject,
+      books: subject.books.filter((book) => book.id === bookId)
+    }))
+    .filter((subject) => subject.books.length > 0);
+
+  const hydratedSubjects: SubjectRecord[] = activeSubjects.map((subject) => ({
     ...subject,
     books: subject.books.map((book) =>
       book.id === bookId

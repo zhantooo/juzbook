@@ -12,7 +12,8 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
-  const isDark = mounted ? resolvedTheme === "dark" : true;
+  // Гидратацияға дейін жарық режим болжанады — сайттың әдепкісі де сол.
+  const isDark = mounted ? resolvedTheme === "dark" : false;
 
   return (
     <button

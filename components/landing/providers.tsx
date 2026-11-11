@@ -7,9 +7,18 @@ import { AuthProvider } from "@/components/state/auth-context";
 import { CatalogProvider } from "@/components/state/catalog-context";
 import { PomodoroProvider } from "@/components/state/pomodoro-context";
 
+/**
+ * Сайт жарық режимде ашылады. Бұрын әдепкісі қараңғы еді де, бірінші рет
+ * кірген оқушы түнгі түсті көретін.
+ *
+ * `enableSystem` қосулы: құрылғысында қараңғы режим тұрған оқушы «Жүйе»
+ * нұсқасын таңдай алады. Әдепкісі бәрібір жарық — себебі `defaultTheme`
+ * «system» емес, «light». Бұрын түсті өзі ауыстырған оқушының таңдауы
+ * localStorage-та сақталған, сондықтан оған тиіспейді.
+ */
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <CatalogProvider>
         <AuthProvider>
           <PomodoroProvider>

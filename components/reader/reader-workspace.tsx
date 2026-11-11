@@ -1442,7 +1442,21 @@ export function ReaderWorkspace({
 
               <div
                 data-reader-grid="true"
-                className={`relative grid grid-cols-1 items-start gap-8 ${
+                /**
+                 * Бағандарға бөліну `lg`-ден (1024px) басталады.
+                 *
+                 * Бұрын ол тек `xl`-ден (1280px) басталатын, ал бүйірдегі
+                 * навигацияның өз стильдері `lg`-де қосылатын. Екі аралықтағы
+                 * экранда (1024–1279px) навигация бір бағанды күйде тұрып-ақ
+                 * биіктігі шектеліп, өз ішінде айналатын — MacBook экрандары
+                 * дәл осы аралыққа түседі де, тізім толық көрінбейтін.
+                 *
+                 * Үш баған тек `xl`-ден бастап: 1024px-те үшеуі сыйса, оқу
+                 * беті 320px-ке дейін қысылып кетер еді. Сондықтан бұл
+                 * аралықта оқу панелі екі бағанның астына толық енімен
+                 * түседі (`lg:col-span-2`).
+                 */
+                className={`relative grid grid-cols-1 items-start gap-8 lg:grid-cols-[280px_minmax(0,1fr)] ${
                   showStudyPanel
                     ? "xl:grid-cols-[300px_minmax(0,1fr)_340px] 2xl:grid-cols-[330px_minmax(0,1fr)_370px]"
                     : "xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[330px_minmax(0,1fr)]"
@@ -1757,7 +1771,7 @@ export function ReaderWorkspace({
                    * толық көрінетін. Енді өз ішінде айналады: панель экранға
                    * бекітіліп тұрады да, артығы ішкі сырғытпамен ашылады.
                    */
-                  className="glass-card w-full min-w-0 self-start p-5 xl:sticky xl:top-24 xl:max-h-[calc(100vh_-_7.5rem)] xl:overflow-y-auto xl:overscroll-contain"
+                  className="glass-card w-full min-w-0 self-start p-5 lg:col-span-2 xl:col-span-1 xl:sticky xl:top-24 xl:max-h-[calc(100vh_-_7.5rem)] xl:overflow-y-auto xl:overscroll-contain"
                 >
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-sky-600 dark:text-cyan-300" />

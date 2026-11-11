@@ -2405,24 +2405,45 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
   }
 
   /** Қиылған суретті файл етіп сақтайды; сәтсіз болса, data-URL күйінде қалады */
+  /**
+   * Қиылған суретті серверге жүктейді.
+   *
+   * Қате болса — лақтырады, жұтпайды. Бұрын кез келген сәтсіздікте `null`
+   * қайтаратын да, шақырушы оның орнына суретті data-URL күйінде мәтінге
+   * жазатын. Ол мәтін сақтау шегінен (600 000 таңба) асып кететіндіктен
+   * сақтау мүлде өтпей, әкімшінің көзіне сурет «жоғалып кеткендей»
+   * көрінетін. Енді нақты себебі айтылады да, мазмұн бүлінбейді.
+   */
   async function uploadEditedImage(dataUrl: string) {
+    let response: Response;
     try {
-      const response = await fetch("/api/admin/images", {
+      response = await fetch("/api/admin/images", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dataUrl })
       });
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const payload = (await response.json()) as { url?: string };
-      return typeof payload.url === "string" ? payload.url : null;
     } catch {
-      return null;
+      throw new Error("Серверге жеткізілмеді. Байланысты тексеріп, қайта көріңіз.");
     }
+
+    if (!response.ok) {
+      let reason = "";
+      try {
+        const payload = (await response.json()) as { error?: string };
+        reason = typeof payload.error === "string" ? payload.error : "";
+      } catch {
+        reason = "";
+      }
+      throw new Error(reason || `Суретті сақтау мүмкін болмады (${response.status}).`);
+    }
+
+    const payload = (await response.json()) as { url?: string };
+    if (typeof payload.url !== "string" || !payload.url) {
+      throw new Error("Сервер суреттің сілтемесін қайтармады.");
+    }
+
+    return payload.url;
   }
 
   async function applyCrop() {
@@ -2452,9 +2473,11 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
 
       context.drawImage(source, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
       const dataUrl = canvas.toDataURL("image/png");
+      // Жүктеу сәтсіз болса, бұл жол лақтырады да, сурет мүлде өзгермейді.
+      // Бұрын мұнда data-URL-ға шегінетін де, мазмұн жарамсыз болып қалатын.
       const uploaded = await uploadEditedImage(dataUrl);
 
-      image.src = uploaded || dataUrl;
+      image.src = uploaded;
       image.removeAttribute("srcset");
       // Қиылған соң биіктік бұрынғы суреттікі болып қалмауы керек
       setImageHeight("");
