@@ -1461,6 +1461,56 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     }
   }
 
+  /**
+   * Орауышы жоқ суреттерді редактор танитын күйге келтіреді.
+   *
+   * Өңдеу, жылжыту және туралау батырмаларының бәрі
+   * `figure[data-juz-image="true"]` орауышына байланған. Ctrl+V арқылы
+   * қойылған немесе сырттан келген мазмұндағы сурет жалаң `<img>` болып
+   * түседі де, сол батырмалар мүлде шықпайды. Мұнда ондай суреттер
+   * қалыпты құрылымға оралады.
+   *
+   * Ені ӘДЕЙІ жазылмайды: сурет өз өлшемінде қалады, кейін әкімші қаласа
+   * өзі белгілейді.
+   *
+   * @returns бірдеңе өзгерсе `true`
+   */
+  function wrapBareImages() {
+    const editor = editorRef.current;
+    if (!editor) {
+      return false;
+    }
+
+    const bare = Array.from(editor.querySelectorAll("img")).filter(
+      (image) => !image.closest("figure[data-juz-image='true']")
+    ) as HTMLImageElement[];
+
+    if (!bare.length) {
+      return false;
+    }
+
+    for (const image of bare) {
+      const imageId = createEditorImageId();
+      const figure = document.createElement("figure");
+      figure.setAttribute("data-juz-image", "true");
+      figure.setAttribute("contenteditable", "false");
+      figure.setAttribute("draggable", "true");
+      figure.dataset.juzImageId = imageId;
+      figure.innerHTML = createMoveDeleteButtons();
+
+      image.parentNode?.insertBefore(figure, image);
+      figure.appendChild(image);
+
+      image.dataset.juzImageId = imageId;
+      image.dataset.align = (image.dataset.align as ContentImageAlign | undefined) || "center";
+      image.dataset.caption = image.dataset.caption || image.getAttribute("alt") || "";
+      image.removeAttribute("srcset");
+      normalizeImageElement(image);
+    }
+
+    return true;
+  }
+
   function openImageControls(image: HTMLImageElement) {
     selectedDangerBlockRef.current = null;
     selectedTermBlockRef.current = null;
@@ -4154,8 +4204,23 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
         spellCheck={false}
         suppressContentEditableWarning
         onInput={() => {
+          wrapBareImages();
           syncContent();
           rememberSelection();
+        }}
+        onPaste={() => {
+          /**
+           * Ctrl+V арқылы қойылған сурет браузердің өз күшімен, жалаң `<img>`
+           * болып енгізіледі — орауышы да, `data-juz-image-id`-і де болмайды.
+           * Сондықтан редактор оны танымай, өңдеу мен жылжыту батырмалары
+           * шықпайтын. Браузер қоюды бітірген соң (келесі кадрда) оны
+           * қалыпты құрылымға келтіреміз.
+           */
+          window.setTimeout(() => {
+            if (wrapBareImages()) {
+              syncContent();
+            }
+          }, 0);
         }}
         onKeyDown={handleEditorKeyDown}
         onKeyUp={rememberSelection}
