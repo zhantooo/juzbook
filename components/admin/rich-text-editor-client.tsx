@@ -2713,6 +2713,15 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     event.preventDefault();
     event.stopPropagation();
 
+    /**
+     * Сурет блогында `draggable="true"` тұрады (оны басып тұрып жылжытуға
+     * болады). Егер тұтқадан басталған қимыл сол күйінде қалса, браузер
+     * нативті сүйреуді бастайды да, `mousemove` оқиғалары мүлде келмейді —
+     * тұтқа тартылмайды. Сондықтан тарту кезінде сүйреу уақытша өшіріледі.
+     */
+    const wasDraggable = figure.draggable;
+    figure.draggable = false;
+
     const startX = event.clientX;
     const startWidth = image.getBoundingClientRect().width || image.naturalWidth || 220;
     const limit = editorRef.current?.clientWidth || 960;
@@ -2727,6 +2736,7 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
+      figure.draggable = wasDraggable;
       setImageWidth(image.dataset.width || "");
       normalizeImageElement(image);
       openImageControls(image);
@@ -4065,6 +4075,17 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
         })}
       </div>
 
+      {/*
+        Панельдер мен жазу алаңы бір бағанға жиналады.
+        `layout="side"` режимінде сыртқы контейнер `flex-row-reverse` болады.
+        Бұрын сурет панелі сол flex-тің тікелей баласы еді де, құралдар
+        тақтасының қасында ТАҒЫ БІР бағанға айналатын: ішіндегі алты бағанды
+        тор 260 пикселге қысылып, өрістер мен батырмалар бірінің астына бірі
+        тізіліп кететін (оқу бетіндегі әкімші режимінде дәл солай көрінген).
+        Енді құралдар тақтасы — бір баған, ал қалғаны екіншісінде, бұрынғыша
+        бірінің астына бірі.
+      */}
+      <div className="flex min-w-0 flex-1 flex-col">
       {isLinkMenuOpen ? (
         <div ref={linkMenuRef} className="border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/70">
           <div className="grid gap-3 md:grid-cols-[1fr_1.4fr_auto]">
@@ -4097,7 +4118,15 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
 
       {hasSelectedImage ? (
         <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/70">
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1.2fr_auto_auto_auto]">
+          {/*
+            Қатаң алты бағанның орнына икемді тізбек.
+            Бұл панель оқу бетіндегі әкімші режимінде тар бағанда тұрады, ал
+            `md:` сияқты шектер экранның енімен есептеледі — контейнердікімен
+            емес. Сондықтан алты баған 260 пикселге қысылып, өрістер бірінің
+            астына бірі тізіліп кететін. Икемді тізбекте әрқайсысы өз орнына
+            қарай ауысады да, кең жерде де, тар жерде де дұрыс көрінеді.
+          */}
+          <div className="flex flex-wrap items-center gap-3 [&>button]:shrink-0">
             <input
               value={imageWidth}
               spellCheck={false}
@@ -4107,9 +4136,9 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
                 setImageWidth(nextValue);
                 patchSelectedImage({ width: nextValue });
               }}
-              placeholder="Ені — бос болса, өз өлшемі"
+              placeholder="Ені"
               title="Бос қалдырсаңыз, сурет түпнұсқа өлшемінде көрінеді"
-              className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-cyan-500/50"
+              className="h-11 w-24 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-cyan-500/50"
             />
             <input
               value={imageHeight}
@@ -4121,9 +4150,9 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
                 patchSelectedImage({ height: nextValue });
               }}
               placeholder="Биіктігі"
-              className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-cyan-500/50"
+              className="h-11 w-24 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-cyan-500/50"
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid shrink-0 grid-cols-3 gap-2">
               {[
                 { value: "left", label: "Сол" },
                 { value: "center", label: "Орта" },
@@ -4324,6 +4353,7 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
           layout === "side" ? "min-w-0 flex-1" : ""
         } overflow-y-auto px-4 py-4 text-base leading-8 text-slate-800 outline-none [&_p[data-indent='true']]:indent-8 dark:text-zinc-100 ${editorClassName ?? ""}`}
       />
+      </div>
     </div>
   );
 });
