@@ -894,7 +894,8 @@ function serializeEditorHtml(editor: HTMLDivElement) {
   // `absolute` блок мәтінге жазылып қалатын — әр сақтау сайын көбейіп,
   // суреттің үстінде қалқып тұратын.
   clone
-    .querySelectorAll("[data-juz-actions], [data-juz-delete], [data-juz-drag], [data-juz-edit]")
+    // Тұтқалар мен батырмалар тек редакторда керек — сақталатын мәтінге кірмейді.
+    .querySelectorAll("[data-juz-actions], [data-juz-delete], [data-juz-drag], [data-juz-edit], [data-juz-resize]")
     .forEach((node) => node.remove());
   clone.querySelectorAll("figure[data-juz-image='true']").forEach((node) => {
     const figure = node as HTMLElement;
@@ -1424,13 +1425,32 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
             : "mx-auto my-5 block text-center";
       figure.style.float = align === "left" ? "left" : align === "right" ? "right" : "none";
       figure.style.clear = align === "center" ? "both" : "none";
-      figure.style.maxWidth = "100%";
+      /**
+       * Оқу бетіндегі шектеумен бірдей.
+       *
+       * `globals.css` ішінде сол/оң жаққа қалқыған сурет бағанның 46%-ымен
+       * (ең көбі 560px) шектеледі. Редакторда ондай шектеу жоқ еді,
+       * сондықтан бір сурет редакторда толық енімен, ал кітапта екі есе
+       * кішірек көрінетін. Енді екеуі бірдей.
+       */
+      figure.style.maxWidth = align === "center" ? "100%" : "min(46%, 560px)";
       figure.style.position = "relative";
       figure.style.boxSizing = "border-box";
       figure.style.overflow = "hidden";
       // Суретті басып тұрып жылжытуға болады
       figure.draggable = true;
       figure.style.cursor = "move";
+
+      // Оң төменгі бұрыштағы тұтқа: тартып, өлшемін сол жерде өзгертуге болады.
+      if (!figure.querySelector("[data-juz-resize='true']")) {
+        const grip = document.createElement("span");
+        grip.setAttribute("data-juz-resize", "true");
+        grip.setAttribute("contenteditable", "false");
+        grip.title = "Өлшемін өзгерту үшін тартыңыз";
+        grip.className =
+          "absolute bottom-1.5 right-1.5 z-20 h-4 w-4 cursor-nwse-resize rounded-sm border-2 border-white bg-sky-500 shadow-md";
+        figure.appendChild(grip);
+      }
 
       if (!figure.querySelector("[data-juz-drag]")) {
         figure.insertAdjacentHTML("afterbegin", createMoveDeleteButtons());
@@ -2667,7 +2687,62 @@ export const RichTextEditorClient = forwardRef<RichTextEditorHandle, {
     placeCaretAtEditorEnd();
   }
 
+  /**
+   * Суретті бұрышынан тартып, өлшемін сол жерде өзгерту.
+   *
+   * Бұрын ені тек «Өңдеу» панелін ашып, өрісіне сан теру арқылы ғана
+   * өзгертілетін. Енді әр суреттің оң төменгі бұрышында тұтқа тұрады.
+   *
+   * Тартып жатқанда тек стиль мен `data-width` жаңарады; мазмұн тартып
+   * болған соң бір рет қана сақталады, әйтпесе әр пиксель сайын бүкіл
+   * редактор мазмұны қайта жиналып, тартылу кідіретін еді.
+   */
+  function startImageResize(event: ReactMouseEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    const grip = target.closest?.("[data-juz-resize='true']") as HTMLElement | null;
+    if (!grip) {
+      return false;
+    }
+
+    const figure = grip.closest("figure[data-juz-image='true']") as HTMLElement | null;
+    const image = figure?.querySelector("img") as HTMLImageElement | null;
+    if (!figure || !image) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startX = event.clientX;
+    const startWidth = image.getBoundingClientRect().width || image.naturalWidth || 220;
+    const limit = editorRef.current?.clientWidth || 960;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const next = Math.round(Math.min(limit, Math.max(40, startWidth + (moveEvent.clientX - startX))));
+      image.dataset.width = String(next);
+      image.style.width = `min(100%, ${next}px)`;
+      figure.dataset.width = String(next);
+    };
+
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setImageWidth(image.dataset.width || "");
+      normalizeImageElement(image);
+      openImageControls(image);
+      syncContent();
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return true;
+  }
+
   function handleEditorMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+    if (startImageResize(event)) {
+      return;
+    }
+
     const target = event.target as HTMLElement;
     const handle = target.closest("[data-juz-drag]") as HTMLElement | null;
     // Батырма басылмаса, суреттің өзін басып тұрып сүйреуге болады
