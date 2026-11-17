@@ -33,12 +33,19 @@ jobs:
     name: Растауды тексеру
     runs-on: ubuntu-latest
     steps:
+      # Енгізілген мәтін `run:` ішіне ТІКЕЛЕЙ қойылмайды, тек айнымалы
+      # арқылы беріледі: әйтпесе себеп өрісіне жазылған нәрсе скрипт
+      # болып орындалып кетуі мүмкін.
       - name: Растау
-        if: ${{ github.event.inputs.confirm != 'ИӘ' }}
+        env:
+          CONFIRM: ${{ github.event.inputs.confirm }}
+          REASON: ${{ github.event.inputs.reason }}
         run: |
-          echo "::error::Растау терілмеді. Өндіріске шығару тоқтатылды."
-          exit 1
-      - run: echo "Себебі: ${{ github.event.inputs.reason }}"
+          if [ "$CONFIRM" != "ИӘ" ]; then
+            echo "::error::Растау терілмеді. Өндіріске шығару тоқтатылды."
+            exit 1
+          fi
+          echo "Себебі: $REASON"
 
   verify:
     name: Қақпалар
@@ -76,24 +83,32 @@ jobs:
 
       # Vercel CLI уақытша шақырылады: жобаның тәуелділіктеріне қосылмайды.
       - name: Өндірістік ортаны алу
-        run: npx --yes vercel@latest pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@latest pull --yes --environment=production --token="$TOKEN"
 
       - name: Құрастыру
-        run: npx --yes vercel@latest build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@latest build --prod --token="$TOKEN"
 
       - name: Шығару
         id: deploy
+        env:
+          TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          url=$(npx --yes vercel@latest deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          url=$(npx --yes vercel@latest deploy --prebuilt --prod --token="$TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Шықты: $url"
 
       # Деплойдан кейін каталог кэші ескі қалуы мүмкін (AGENTS.md).
       # Бет ашылғанда ол өзі жаңарады, сондықтан бір рет сұрап қоямыз.
       - name: Тірілігін тексеру
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
         run: |
           for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.deploy.outputs.url }}/" || true)
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/" || true)
             echo "әрекет $i: HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10
