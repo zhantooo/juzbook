@@ -1,0 +1,53 @@
+# Әр өзгерісті тексеретін құбыр.
+#
+# Жобада үш қақпа бар: типтерді тексеру, тестілер және өндірістік
+# құрастыру. `npm test` — vitest, ол Arena қозғалтқышын тексереді.
+#
+# НАЗАР: тестілер ОРНАЛАСТЫРЫЛҒАН дерекқорға тимейді. `vitest.setup.ts`
+# TURSO_DATABASE_URL айнымалысын өшіреді де, Prisma-ны жергілікті
+# `prisma/arena-test.db` файлына бағыттайды (AGENTS.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Типтер, тестілер, құрастыру
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      # Құрастыру кезінде дерекқорға ҚОСЫЛМАЙДЫ: Prisma жолдың пішімін
+      # ғана тексереді. Нағыз мәндер тек орналастыру кезінде беріледі.
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/juzbook?schema=public"
+      ARENA_DATABASE_URL: "file:./prisma/arena-ci.db"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` postinstall арқылы екі схема бойынша Prisma клиентін жасайды.
+      - name: Тәуелділіктер
+        run: npm ci
+
+      - name: Типтерді тексеру
+        run: npx tsc --noEmit
+
+      - name: Тестілер
+        run: npm test
+
+      - name: Өндірістік құрастыру
+        run: npm run build

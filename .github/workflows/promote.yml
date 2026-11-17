@@ -1,0 +1,102 @@
+# Әзірлеуден өндіріске ҚОЛМЕН көшіру.
+#
+# Неге қолмен: JUZBOOK-та оқушылар жұмыс істеп отыр, ал әр push-ты
+# бірден өндіріске жіберу қауіпті. Сондықтан `main` тармағына түскен
+# әр өзгеріс алдымен Preview ортасына барады, ал өндіріске тек осы
+# жұмыс қолмен іске қосылғанда шығады.
+#
+# Іске қосу: GitHub → Actions → «Өндіріске көшіру» → Run workflow.
+# Растау үшін «ИӘ» деп теру керек — байқаусыз басып қалмау үшін.
+#
+# Керекті құпиялар (Settings → Secrets → Actions):
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+name: Өндіріске көшіру
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Өндіріске шығару үшін ИӘ деп теріңіз'
+        required: true
+        default: 'ЖОҚ'
+      reason:
+        description: 'Себебі (журналға жазылады)'
+        required: false
+        default: ''
+
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Растауды тексеру
+    runs-on: ubuntu-latest
+    steps:
+      - name: Растау
+        if: ${{ github.event.inputs.confirm != 'ИӘ' }}
+        run: |
+          echo "::error::Растау терілмеді. Өндіріске шығару тоқтатылды."
+          exit 1
+      - run: echo "Себебі: ${{ github.event.inputs.reason }}"
+
+  verify:
+    name: Қақпалар
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/juzbook?schema=public"
+      ARENA_DATABASE_URL: "file:./prisma/arena-ci.db"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  deploy:
+    name: Vercel өндірісі
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Vercel CLI уақытша шақырылады: жобаның тәуелділіктеріне қосылмайды.
+      - name: Өндірістік ортаны алу
+        run: npx --yes vercel@latest pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Құрастыру
+        run: npx --yes vercel@latest build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Шығару
+        id: deploy
+        run: |
+          url=$(npx --yes vercel@latest deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Шықты: $url"
+
+      # Деплойдан кейін каталог кэші ескі қалуы мүмкін (AGENTS.md).
+      # Бет ашылғанда ол өзі жаңарады, сондықтан бір рет сұрап қоямыз.
+      - name: Тірілігін тексеру
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.deploy.outputs.url }}/" || true)
+            echo "әрекет $i: HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "::error::Жаңа деплой жауап бермеді"
+          exit 1

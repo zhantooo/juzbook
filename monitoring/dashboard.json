@@ -1,0 +1,94 @@
+{
+  "title": "JUZBOOK — қолданба көрсеткіштері",
+  "description": "Қолданбаның өз өлшемдері. Жалпы HTTP көрсеткіштерін OpenTelemetry өзі жинайды, мұнда тек JUZBOOK-қа тән, бұзылғанын көрсететіндері.",
+  "tags": ["juzbook"],
+  "timezone": "Asia/Almaty",
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Орта",
+        "type": "custom",
+        "query": "juzbook-production,juzbook-preview,juzbook-development",
+        "current": { "text": "juzbook-production", "value": "juzbook-production" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Каталог жауабының көлемі",
+      "description": "Бір рет 532 КБ-қа дейін өсіп, оқу бетін ауырлатқан. 200 КБ-тан асса — қайталанды деген сөз.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "bytes", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 204800 }, { "color": "red", "value": 1048576 }] } } },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, view) (rate(juzbook_reader_payload_bytes_bucket{service_name=\"$environment\"}[5m])))", "legendFormat": "p95 — {{view}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Каталогты оқу уақыты",
+      "description": "20 мс-тан аз болса — кэштен келген. Тұрақты жоғары болса, кэш жұмыс істемей тұр.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, cached) (rate(juzbook_catalog_query_ms_bucket{service_name=\"$environment\"}[5m])))", "legendFormat": "p95 — кэш: {{cached}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Іздеу кідірісі",
+      "description": "Кілт сөз бен мағына бойынша іздеу қосылып беріледі. Біреуі құласа, кідіріс емес, нәтижесіз сұраным өседі.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(juzbook_search_latency_ms_bucket{service_name=\"$environment\"}[5m])))", "legendFormat": "p95" },
+        { "refId": "B", "expr": "histogram_quantile(0.50, sum by (le) (rate(juzbook_search_latency_ms_bucket{service_name=\"$environment\"}[5m])))", "legendFormat": "медиана" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Нәтижесіз іздеу",
+      "description": "Күрт өссе — векторлық индекс не кілт сөз индексі істен шыққан болуы мүмкін.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(juzbook_search_empty_total{service_name=\"$environment\"}[15m]))", "legendFormat": "минутына" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Gemini кілтінің ауысуы",
+      "description": "Кілт шектеуге тірелгенде ауысады. Жиілесе — пул таусылып жатыр, тест құрастыру тоқтауы мүмкін.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (reason) (rate(juzbook_gemini_key_rotated_total{service_name=\"$environment\"}[15m]))", "legendFormat": "{{reason}}" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Құрастырылған тестілер",
+      "description": "Дайын банктен бе, ИИ арқылы ма. Банк үлесі күрт түссе, банкке жетпей тұр деген сөз.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (source) (rate(juzbook_test_generated_total{service_name=\"$environment\"}[30m]))", "legendFormat": "{{source}}" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Аяқталған жекпе-жектер",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (outcome) (rate(juzbook_arena_match_finished_total{service_name=\"$environment\"}[30m]))", "legendFormat": "{{outcome}}" }
+      ]
+    }
+  ]
+}

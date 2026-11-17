@@ -2,6 +2,7 @@ import { Prisma, prisma } from "@/lib/prisma";
 import { buildHighlightedSearchSnippet } from "@/lib/search-preview";
 import { FOLD_FROM, FOLD_TO, escapeLikePattern, splitSearchWords } from "@/lib/search-folding";
 import { semanticSearch } from "@/lib/search/semantic";
+import { recordSearch } from "@/lib/telemetry";
 import { hasVectorSearch } from "@/lib/search/vector-db";
 
 export const runtime = "nodejs";
@@ -32,6 +33,7 @@ type SearchRow = {
  * істемей қалса (кілт жоқ, квота бітті), бет бұрынғыдай жұмыс істей береді.
  */
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   try {
     const { searchParams } = new URL(request.url);
     const term = (searchParams.get("q") || "").trim();
@@ -162,6 +164,11 @@ export async function GET(request: Request) {
         excerpt
       };
     });
+
+    // Өлшем: кідіріс пен нәтиже саны. Нәтижесіз сұранымдар жиілесе,
+    // индекс ескірген не бүлінген деген белгі (AGENTS.md: іздеу екі
+    // жүйенің қосындысы, біреуі құласа екіншісі үнсіз жалғыз қалады).
+    recordSearch(Date.now() - startedAt, { kind: "merged", hits: results.length });
 
     return Response.json({ results });
   } catch (error) {

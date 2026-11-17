@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { getCatalogFromDatabase, getCatalogNavigationFromDatabase } from "@/lib/catalog-db";
 import { getCurrentUserFromRequest } from "@/lib/security/auth";
+import { recordCatalogQuery, recordReaderPayload } from "@/lib/telemetry";
 
 export const runtime = "nodejs";
 
@@ -19,8 +20,17 @@ export const runtime = "nodejs";
  * пайдаланушыға қарай өзгереді (жасырылған пәндер), сондықтан ортақ
  * кэшке сақталмауы керек, бірақ әр сұранымда `ETag` арқылы тексеріледі.
  */
-function buildResponse(request: Request, payload: unknown, status = 200) {
+function buildResponse(
+  request: Request,
+  payload: unknown,
+  status = 200,
+  measure?: { view: "navigation" | "full"; admin: boolean }
+) {
   const body = JSON.stringify(payload);
+  // Жауаптың нақты көлемі осы жерде ғана белгілі — сығылмаған күйінде.
+  if (measure && status === 200) {
+    recordReaderPayload(body.length, measure);
+  }
   const etag = `"${createHash("sha1").update(body).digest("hex")}"`;
 
   const headers: Record<string, string> = {
@@ -78,11 +88,23 @@ export async function GET(request: Request) {
      * кіреді, бірақ ауыр мәтін жіберілмейді.
      */
     const wantsFullCatalog = view !== "navigation" && includeHidden;
+    const startedAt = Date.now();
     const subjects = wantsFullCatalog
       ? await getCatalogFromDatabase(true)
       : await getCatalogNavigationFromDatabase(includeHidden);
 
-    return buildResponse(request, { subjects });
+    /**
+     * Өлшем: каталогтың көлемі мен оқу уақыты.
+     *
+     * Жауаптың көлемі бір рет 532 КБ-қа дейін өсіп, оқу бетін
+     * ауырлатқан еді. Тақтада көрініп тұрса, ондай өсу байқалмай
+     * қалмайды. Уақыт 10 мс шамасында болса — кэштен келген.
+     */
+    const elapsed = Date.now() - startedAt;
+    const viewLabel = wantsFullCatalog ? "full" : "navigation";
+    recordCatalogQuery(elapsed, { view: viewLabel, cached: elapsed < 20 });
+
+    return buildResponse(request, { subjects }, 200, { view: viewLabel, admin: includeHidden });
   } catch (error) {
     return buildResponse(
       request,

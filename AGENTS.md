@@ -219,3 +219,41 @@ never reach the reader.
 - **Bot answers are derived from `matchId` and the question number,** so they
   are stable across re-reads. Do not make them random at read time, or the
   state will change while a player looks at it.
+
+---
+
+## Орталар, құбыр және бақылау
+
+| Бөлік | Қайда |
+|---|---|
+| Ортаны анықтау және жазу қорғанысы | [`lib/runtime-env.ts`](lib/runtime-env.ts) |
+| OpenTelemetry іске қосылуы | [`instrumentation.ts`](instrumentation.ts) |
+| Қолданбаның өз өлшемдері | [`lib/telemetry.ts`](lib/telemetry.ts) |
+| Тақта, дабыл, кезекші | [`monitoring/`](monitoring/README.md) |
+| CI | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Өндіріске қолмен көшіру | [`.github/workflows/promote.yml`](.github/workflows/promote.yml) |
+
+### Ережелер
+
+1. **Орта дерекқор бойынша анықталады,** қолданба қай жерде жүргені
+   бойынша емес. `DATABASE_URL` жергілікті хостқа бағытталса — әзірлеу,
+   қалғаны өндіріс (`VERCEL_ENV=preview` болса — алдын ала қарау).
+   Белгісіз жағдайда өндіріс деп саналады: қауіпсіз жағы.
+2. **Деректі өзгертетін скрипт `assertWritable()` арқылы өтеді.**
+   Өндірістік базаға жазу үшін `JUZBOOK_ALLOW_PRODUCTION_WRITE=1` керек.
+3. **Өндіріске тек қолмен шығады.** `main`-ге түскен өзгеріс Preview-ге
+   барады, ал өндіріске `promote.yml` жұмысы қолмен іске қосылғанда
+   ғана. Растау үшін «ИӘ» деп теру керек.
+4. **Бақылаудың құлауы оқушыға әсер етпеуі керек.**
+   `OTEL_EXPORTER_OTLP_ENDPOINT` берілмесе, OTel мүлде қосылмайды.
+5. **Кезекші агент тек оқиды және issue жазады.** Код өзгертпейді,
+   деплой жасамайды, дерекқорға тимейді.
+
+### Тұзақ
+
+- **Жергілікті және өндірістік дерекқорда дерек бірдей көрінеді**
+  (екеуінде де 2300-дей тақырып, бірдей идентификаторлар). Бір рет
+  бүтін бір топтама түзету — қайталанған бөлім атаулары, сурет
+  туралаулары, тарау шекаралары — байқаусыз жергілікті базада
+  орындалып, өндіріске жетпей қалған. Әкімші бетіндегі орта белгісі
+  мен `assertWritable()` осы себептен қосылды.

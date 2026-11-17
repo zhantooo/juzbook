@@ -1,0 +1,103 @@
+# Дабыл ережелері (Grafana Alerting пішімі).
+#
+# Әрқайсысы `/api/alerts/oncall` маршрутына webhook жібереді, ал ол жерде
+# кезекші агент диагноз жазып, GitHub-та issue ашады.
+#
+# Шектер ойдан алынбаған — олар осы жобада НАҚТЫ болған ақаулардан:
+#   · каталог жауабы 532 КБ-қа дейін өсіп, оқу бетін ауырлатқан;
+#   · әкімші панелі 20 МБ сұрап, бір минут қатып қалатын;
+#   · іздеу индексі құласа, сұранымдар үнсіз нәтижесіз қайтады.
+apiVersion: 1
+
+groups:
+  - name: juzbook-qoldanba
+    interval: 1m
+    rules:
+      - uid: juzbook-catalog-payload
+        title: Каталог жауабы тым ауыр
+        condition: asqan
+        for: 10m
+        annotations:
+          summary: "Каталог жауабының p95 көлемі 200 КБ-тан асты"
+          description: >-
+            Навигация жауабы бұрын 532 КБ болып, оқу бетін ауырлатқан еді.
+            Қайта өсуі — маппердің артық өріс жібере бастағанын білдіруі мүмкін.
+        labels:
+          severity: warning
+        data:
+          - refId: asqan
+            datasourceUid: prometheus
+            model:
+              expr: histogram_quantile(0.95, sum by (le) (rate(juzbook_reader_payload_bytes_bucket[10m]))) > 204800
+
+      - uid: juzbook-catalog-slow
+        title: Каталог баяу оқылады
+        condition: baiau
+        for: 10m
+        annotations:
+          summary: "Каталогты оқу p95 уақыты 2 секундтан асты"
+          description: >-
+            Кэш жұмыс істемей тұрса немесе дерекқор ауырласа осылай болады.
+            Әкімші панелі бір рет осы себептен қатып қалған.
+        labels:
+          severity: warning
+        data:
+          - refId: baiau
+            datasourceUid: prometheus
+            model:
+              expr: histogram_quantile(0.95, sum by (le) (rate(juzbook_catalog_query_ms_bucket[10m]))) > 2000
+
+      - uid: juzbook-search-empty
+        title: Іздеу нәтиже бермей жатыр
+        condition: bos
+        for: 15m
+        annotations:
+          summary: "Нәтижесіз іздеу сұранымдары күрт өсті"
+          description: >-
+            Іздеу екі жүйенің қосындысы: кілт сөз (Postgres) және мағына (Turso).
+            Біреуі құласа, екіншісі үнсіз жалғыз қалады да, нәтиже азаяды.
+        labels:
+          severity: critical
+        data:
+          - refId: bos
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(juzbook_search_empty_total[15m])) > 0.5
+
+      - uid: juzbook-gemini-keys
+        title: Gemini кілттері таусылып барады
+        condition: tausyldy
+        for: 15m
+        annotations:
+          summary: "Кілттің шектеуге тірелуі жиілеп кетті"
+          description: >-
+            Пулдағы кілттер бірінен соң бірі шектеуге тірелсе, тест құрастыру
+            мен флешкарта жасау тоқтайды.
+        labels:
+          severity: warning
+        data:
+          - refId: tausyldy
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(juzbook_gemini_key_rotated_total[15m])) > 0.2
+
+contactPoints:
+  - name: juzbook-oncall
+    receivers:
+      - uid: juzbook-oncall-webhook
+        type: webhook
+        settings:
+          url: https://juzbook.vercel.app/api/alerts/oncall
+          httpMethod: POST
+          # Құпия Grafana-ның өз қоймасында сақталады, бұл файлда емес.
+          authorization_scheme: ""
+        secureSettings:
+          # x-juzbook-alert-secret тақырыбы ONCALL_WEBHOOK_SECRET мәніне тең болуы керек
+          httpHeaderValue1: "${ONCALL_WEBHOOK_SECRET}"
+
+policies:
+  - receiver: juzbook-oncall
+    group_by: [alertname]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
